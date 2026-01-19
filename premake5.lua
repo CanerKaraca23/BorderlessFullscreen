@@ -10,7 +10,7 @@ xcopy /Y \"$(TargetPath)\" \"$(GTA_" .. gameAbbr .. "_DIR)\\scripts\" \r\n\
     debugdir ("$(GTA_" .. gameAbbr .. "_DIR)")
 end
 
-workspace "SA.WindowedMode"
+workspace "BorderlessFullscreen"
    configurations { "Release", "GtaSA" }
    platforms { "Win32" }
    architecture "x32"
@@ -22,7 +22,7 @@ workspace "SA.WindowedMode"
    buildoptions {"-std:c++latest"}
    flags { "MultiProcessorCompile" }
       
-project "SA.WindowedMode"
+project "BorderlessFullscreen"
    kind "SharedLib"
    language "C++"
    targetdir "data/%{cfg.buildcfg}"

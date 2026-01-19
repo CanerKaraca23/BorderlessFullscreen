@@ -7,7 +7,7 @@ Originally created by **maxorator** as part of **Maxo's Vehicle Loader** for Vic
 ----
 ## Installation
 1. [ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases) is required. If you don't have it, just install [Widescreen Fix](https://thirteenag.github.io/wfp#gta), ASI Loader comes with it.
-2. Unpack **SA.WindowedMode.asi** into **scripts** folder, or [modloader](https://github.com/thelink2012/modloader/releases) folder.
+2. Unpack **BorderlessFullscreen.asi** into **scripts** folder, or [modloader](https://github.com/thelink2012/modloader/releases) folder.
 3. Start the game.
 
 ----

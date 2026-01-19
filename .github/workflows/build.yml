@@ -26,10 +26,10 @@ jobs:
       run: .\premake5.bat
     
     - name: Build project
-      run: msbuild build\SA.WindowedMode.sln /p:Configuration=Release /p:Platform=Win32 /m /verbosity:minimal
+      run: msbuild build\BorderlessFullscreen.sln /p:Configuration=Release /p:Platform=Win32 /m /verbosity:minimal
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: SA.WindowedMode
-        path: data\SA.WindowedMode.asi
+        name: BorderlessFullscreen
+        path: data\BorderlessFullscreen.asi
