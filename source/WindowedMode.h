@@ -11,7 +11,7 @@ public:
 	RsGlobalTypeSA* rsGlobalSA;
 	WNDPROC oriWindowProc;
 	IDirect3DDevice8* &d3dDevice;
-	D3DPRESENT_PARAMETERS_D3D9* d3dPresentParams9;
+	D3DPRESENT_PARAMETERS* d3dPresentParams;
 	DisplayMode** rwVideoModes; // array
 	DWORD (*RwEngineGetNumVideoModes)();
 	DWORD (*RwEngineGetCurrentVideoMode)();

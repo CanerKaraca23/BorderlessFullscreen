@@ -17,7 +17,7 @@ WindowedMode::WindowedMode(
 	gameState(*(GameState*)gameState),
 	rsGlobalSA((RsGlobalTypeSA*)rsGlobal),
 	d3dDevice(*(IDirect3DDevice8**)d3dDevice),
-	d3dPresentParams9((D3DPRESENT_PARAMETERS_D3D9*)d3dPresentParams),
+	d3dPresentParams((D3DPRESENT_PARAMETERS*)d3dPresentParams),
 	rwVideoModes((DisplayMode**)rwVideoModes),
 	RwEngineGetNumVideoModes(*(DWORD(*)())RwEngineGetNumVideoModes),
 	RwEngineGetCurrentVideoMode(*(DWORD(*)())RwEngineGetCurrentVideoMode),
@@ -146,14 +146,14 @@ void WindowedMode::WindowCalculateGeometry(bool resizeWindow)
 	rsGlobalSA->MaximumHeight = windowSizeClient.y;
 
 	// DirectX 9 parameters
-	d3dPresentParams9->Windowed = TRUE;
-	d3dPresentParams9->hDeviceWindow = window;
-	d3dPresentParams9->BackBufferWidth = windowSizeClient.x;
-	d3dPresentParams9->BackBufferHeight = windowSizeClient.y;
-	d3dPresentParams9->BackBufferFormat = D3DFMT_A8R8G8B8;
-	d3dPresentParams9->SwapEffect = D3DSWAPEFFECT_DISCARD;
-	d3dPresentParams9->FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
-	d3dPresentParams9->FullScreen_RefreshRateInHz = 0;
+	d3dPresentParams->Windowed = TRUE;
+	d3dPresentParams->hDeviceWindow = window;
+	d3dPresentParams->BackBufferWidth = windowSizeClient.x;
+	d3dPresentParams->BackBufferHeight = windowSizeClient.y;
+	d3dPresentParams->BackBufferFormat = D3DFMT_A8R8G8B8;
+	d3dPresentParams->SwapEffect = D3DSWAPEFFECT_DISCARD;
+	d3dPresentParams->FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+	d3dPresentParams->FullScreen_RefreshRateInHz = 0;
 
 	// write the resolution into video display modes list
 	if (*rwVideoModes)
@@ -178,8 +178,8 @@ void WindowedMode::WindowCalculateGeometry(bool resizeWindow)
 		auto& mode = (*rwVideoModes)[currVideoMode];
 		mode.width = windowSizeClient.x;
 		mode.height = windowSizeClient.y;
-		mode.format = d3dPresentParams9->BackBufferFormat;
-		mode.refreshRate = d3dPresentParams9->FullScreen_RefreshRateInHz;
+		mode.format = d3dPresentParams->BackBufferFormat;
+		mode.refreshRate = d3dPresentParams->FullScreen_RefreshRateInHz;
 		mode.flags &= ~1; // clear fullscreen flag
 	}
 
@@ -383,7 +383,7 @@ HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS
 	// Always update geometry, ignore resolution changes from game
 	inst->WindowCalculateGeometry();
 
-	auto result = inst->d3dResetOri(self, (D3DPRESENT_PARAMETERS*)inst->d3dPresentParams9);
+	auto result = inst->d3dResetOri(self, (D3DPRESENT_PARAMETERS*)inst->d3dPresentParams);
 
 	if (SUCCEEDED(result))
 		inst->UpdatePostEffect();

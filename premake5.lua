@@ -41,11 +41,9 @@ project "SA.WindowedMode"
    files { "external/injector/zydis/**.h", "external/injector/zydis/**.c" }
 
    includedirs { "source" }
-   includedirs { "source/d3d8" }
    includedirs { "external/injector/safetyhook/include" }
    includedirs { "external/injector/zydis" }
    includedirs { "external/injector/include" }
-   includedirs { "external/IniReader" }
 
    filter "configurations:GtaSA"
       defines { "DEBUG" }
