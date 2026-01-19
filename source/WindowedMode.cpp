@@ -688,7 +688,7 @@ HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS
 		inst->WindowResize({ (LONG)parameters->BackBufferWidth, (LONG)parameters->BackBufferHeight });
 	}
 
-	auto result = inst->d3dResetOri(self, inst->d3dPresentParams9);
+	auto result = inst->d3dResetOri(self, (D3DPRESENT_PARAMETERS*)inst->d3dPresentParams9);
 
 	if (SUCCEEDED(result))
 		inst->UpdatePostEffect();
