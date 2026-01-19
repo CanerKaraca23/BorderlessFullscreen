@@ -1,6 +1,4 @@
 #include "WindowedMode.h"
-#include "Windowed_Gta3.h"
-#include "Windowed_GtaVC.h"
 #include "Windowed_GtaSA.h"
 #include <dwmapi.h>
 
@@ -19,7 +17,6 @@ const WindowedMode::AspectRatioInfo WindowedMode::AspectRatios[] = {
 };
 
 WindowedMode::WindowedMode(
-	GameTitle gameTitle,
 	uintptr_t gameState,
 	uintptr_t rsGlobal,
 	uintptr_t d3dDevice,
@@ -29,11 +26,10 @@ WindowedMode::WindowedMode(
 	uintptr_t RwEngineGetCurrentVideoMode,
 	uintptr_t frontEndMenuManager
 ) :
-	gameTitle(gameTitle),
 	gameState(*(GameState*)gameState),
-	rsGlobal((RsGlobalType*)rsGlobal),
+	rsGlobalSA((RsGlobalTypeSA*)rsGlobal),
 	d3dDevice(*(IDirect3DDevice8**)d3dDevice),
-	d3dPresentParams8((D3DPRESENT_PARAMETERS*)d3dPresentParams),
+	d3dPresentParams9((D3DPRESENT_PARAMETERS_D3D9*)d3dPresentParams),
 	rwVideoModes((DisplayMode**)rwVideoModes),
 	RwEngineGetNumVideoModes(*(DWORD(*)())RwEngineGetNumVideoModes),
 	RwEngineGetCurrentVideoMode(*(DWORD(*)())RwEngineGetCurrentVideoMode),
@@ -106,22 +102,12 @@ void WindowedMode::InitD3dDevice()
 	DWORD oldProtect;
 	injector::UnprotectMemory(vTable, 20 * sizeof(uintptr_t), oldProtect);
 
-	if (IsD3D9())
-	{
-		d3dResetOri = reinterpret_cast<decltype(d3dResetOri)>(vTable[16]);
-		vTable[16] = (uintptr_t)&D3dResetHook;
+	// DirectX 9 hooks
+	d3dResetOri = reinterpret_cast<decltype(d3dResetOri)>(vTable[16]);
+	vTable[16] = (uintptr_t)&D3dResetHook;
 
-		d3dPresentOri = reinterpret_cast<decltype(d3dPresentOri)>(vTable[17]);
-		vTable[17] = (uintptr_t)&D3dPresentHook;
-	}
-	else
-	{
-		d3dResetOri = reinterpret_cast<decltype(d3dResetOri)>(vTable[14]);
-		vTable[14] = (uintptr_t)&D3dResetHook;
-
-		d3dPresentOri = reinterpret_cast<decltype(d3dPresentOri)>(vTable[15]);
-		vTable[15] = (uintptr_t)&D3dPresentHook;
-	}
+	d3dPresentOri = reinterpret_cast<decltype(d3dPresentOri)>(vTable[17]);
+	vTable[17] = (uintptr_t)&D3dPresentHook;
 }
 
 void WindowedMode::InitConfig()
@@ -277,43 +263,20 @@ void WindowedMode::WindowCalculateGeometry(bool center, bool resizeWindow)
 	}
 
 	// apply resolution to game internals
-	if (gameTitle == GameTitle::GTA_SA)
-	{
-		rsGlobalSA->ps->fullScreen = false;
-		rsGlobalSA->ps->window = window;
-		rsGlobalSA->MaximumWidth = windowSizeClient.x;
-		rsGlobalSA->MaximumHeight = windowSizeClient.y;
-	}
-	else
-	{
-		rsGlobal->ps->fullScreen = false;
-		rsGlobal->ps->window = window;
-		rsGlobal->screenWidth = rsGlobal->MaximumWidth = windowSizeClient.x;
-		rsGlobal->screenHeight = rsGlobal->MaximumHeight = windowSizeClient.y;
-	}
+	rsGlobalSA->ps->fullScreen = false;
+	rsGlobalSA->ps->window = window;
+	rsGlobalSA->MaximumWidth = windowSizeClient.x;
+	rsGlobalSA->MaximumHeight = windowSizeClient.y;
 
-	if (IsD3D9())
-	{
-		d3dPresentParams9->Windowed = TRUE;
-		d3dPresentParams9->hDeviceWindow = window;
-		d3dPresentParams9->BackBufferWidth = windowSizeClient.x;
-		d3dPresentParams9->BackBufferHeight = windowSizeClient.y;
-		d3dPresentParams9->BackBufferFormat = D3DFMT_A8R8G8B8;
-		d3dPresentParams9->SwapEffect = D3DSWAPEFFECT_DISCARD;
-		d3dPresentParams9->FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
-		d3dPresentParams9->FullScreen_RefreshRateInHz = 0;
-	}
-	else
-	{
-		d3dPresentParams8->Windowed = TRUE;
-		d3dPresentParams8->hDeviceWindow = window;
-		d3dPresentParams8->BackBufferWidth = windowSizeClient.x;
-		d3dPresentParams8->BackBufferHeight = windowSizeClient.y;
-		d3dPresentParams8->BackBufferFormat = D3DFMT_X8R8G8B8;
-		d3dPresentParams8->SwapEffect = D3DSWAPEFFECT_DISCARD;
-		d3dPresentParams8->FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
-		d3dPresentParams8->FullScreen_RefreshRateInHz = 0;
-	}
+	// DirectX 9 parameters
+	d3dPresentParams9->Windowed = TRUE;
+	d3dPresentParams9->hDeviceWindow = window;
+	d3dPresentParams9->BackBufferWidth = windowSizeClient.x;
+	d3dPresentParams9->BackBufferHeight = windowSizeClient.y;
+	d3dPresentParams9->BackBufferFormat = D3DFMT_A8R8G8B8;
+	d3dPresentParams9->SwapEffect = D3DSWAPEFFECT_DISCARD;
+	d3dPresentParams9->FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+	d3dPresentParams9->FullScreen_RefreshRateInHz = 0;
 
 	// write the resolution into video display modes list
 	if (*rwVideoModes)
@@ -338,8 +301,8 @@ void WindowedMode::WindowCalculateGeometry(bool center, bool resizeWindow)
 		auto& mode = (*rwVideoModes)[currVideoMode];
 		mode.width = windowSizeClient.x;
 		mode.height = windowSizeClient.y;
-		mode.format = IsD3D9() ? d3dPresentParams9->BackBufferFormat : d3dPresentParams8->BackBufferFormat;
-		mode.refreshRate = IsD3D9() ? d3dPresentParams9->FullScreen_RefreshRateInHz : d3dPresentParams8->FullScreen_RefreshRateInHz;
+		mode.format = d3dPresentParams9->BackBufferFormat;
+		mode.refreshRate = d3dPresentParams9->FullScreen_RefreshRateInHz;
 		mode.flags &= ~1; // clear fullscreen flag
 	}
 
@@ -390,14 +353,14 @@ void WindowedMode::WindowUpdateTitle()
 		}
 
 		sprintf_s(windowTitle, "%s | %ux%u%s @ %u fps",
-			rsGlobal->AppName,
+			rsGlobalSA->AppName,
 			windowSizeClient.x,
 			windowSizeClient.y,
 			aspectTxt.c_str(),
 			fpsCounter.get());
 	}
 	else
-		strcpy_s(windowTitle, rsGlobal->AppName);
+		strcpy_s(windowTitle, rsGlobalSA->AppName);
 	
 	if (window)
 		SetWindowText(window, windowTitle);
@@ -683,11 +646,6 @@ RECT WindowedMode::GetFrameSize(bool padOnly) const
 	return frame;
 }
 
-bool WindowedMode::IsD3D9() const
-{
-	return gameTitle == GameTitle::GTA_SA;
-}
-
 HRESULT WindowedMode::D3dPresentHook(IDirect3DDevice8* self, const RECT* srcRect, const RECT* dstRect, HWND wnd, const RGNDATA* region)
 {
 	inst->MouseUpdate();
@@ -730,7 +688,7 @@ HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS
 		inst->WindowResize({ (LONG)parameters->BackBufferWidth, (LONG)parameters->BackBufferHeight });
 	}
 
-	auto result = inst->d3dResetOri(self, inst->d3dPresentParams8);
+	auto result = inst->d3dResetOri(self, inst->d3dPresentParams9);
 
 	if (SUCCEEDED(result))
 		inst->UpdatePostEffect();
@@ -740,62 +698,17 @@ HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS
 
 bool WindowedMode::IsMainMenuVisible() const
 {
-	switch(gameTitle)
-	{
-		case GTA_3:
-		{
-			auto mgr = (CMenuManager3*)frontEndMenuManager;
-			return mgr->m_bMenuActive;
-		}
-
-		case GTA_VC:
-		{
-			auto mgr = (CMenuManagerVC*)frontEndMenuManager;
-			return mgr->m_bMenuActive;
-		}
-		
-		case GTA_SA:
-		{
-			auto mgr = (CMenuManagerSA*)frontEndMenuManager;
-			return mgr->m_bMenuActive;
-		}
-
-		default:
-			return false;
-	}
+	auto mgr = (CMenuManagerSA*)frontEndMenuManager;
+	return mgr->m_bMenuActive;
 }
 
 void WindowedMode::SwitchMainMenu(bool show)
 {
-	switch(gameTitle)
-	{
-		case GTA_3:
-			if (show)
-				injector::cstd<void()>::call(0x488770); // CMenuManager::RequestFrontEndStartUp()
-			else
-				injector::cstd<void()>::call(0x488750); // CMenuManager::RequestFrontEndShutDown()
-			break;
+	auto mgr = (CMenuManagerSA*)frontEndMenuManager;
+	if (show == mgr->m_bMenuActive) return; // already done
 
-		case GTA_VC:
-		{
-			auto mgr = (CMenuManagerVC*)frontEndMenuManager;
-			if (show == mgr->m_bMenuActive) break; // already done
-			
-			mgr->m_bStartUpFrontEndRequested = show;
-			mgr->m_bShutDownFrontEndRequested = !show;
-			break;
-		}
-		
-		case GTA_SA:
-		{
-			auto mgr = (CMenuManagerSA*)frontEndMenuManager;
-			if (show == mgr->m_bMenuActive) break; // already done
-
-			mgr->m_bActivateMenuNextFrame = show;
-			mgr->m_bDontDrawFrontEnd = !show;
-			break;
-		}
-	}
+	mgr->m_bActivateMenuNextFrame = show;
+	mgr->m_bDontDrawFrontEnd = !show;
 }
 
 void WindowedMode::MouseUpdate(bool force)
@@ -826,36 +739,21 @@ void WindowedMode::MouseUpdate(bool force)
 
 void WindowedMode::UpdatePostEffect()
 {
-	switch(gameTitle)
+	POINT oriSize;
+	auto cam = *(RwCamera**)0xC1703C; // Scene.m_pRwCamera
+	if (cam)
 	{
-		case GameTitle::GTA_3:
-			injector::cstd<void(RwCamera*)>::call(0x50AE40, *(RwCamera**)0x72676C); // CMBlurMotion::BlurOpen(RwCamera*)
-			break;
-			
-		case GameTitle::GTA_VC:
-			injector::cstd<void(RwCamera*)>::call(0x55CE20, *(RwCamera**)0x8100BC); // CMBlurMotion::BlurOpen(RwCamera*)
-			break;
-			
-		case GameTitle::GTA_SA:
-		{
-			POINT oriSize;
-			auto cam = *(RwCamera**)0xC1703C; // Scene.m_pRwCamera
-			if (cam)
-			{
-				oriSize = { cam->frameBuffer->nWidth, cam->frameBuffer->nHeight }; // store
-				cam->frameBuffer->nWidth = windowSizeClient.x;
-				cam->frameBuffer->nHeight = windowSizeClient.y;
-			}
+		oriSize = { cam->frameBuffer->nWidth, cam->frameBuffer->nHeight }; // store
+		cam->frameBuffer->nWidth = windowSizeClient.x;
+		cam->frameBuffer->nHeight = windowSizeClient.y;
+	}
 
-			injector::cstd<void()>::call(0x7043D0); // CPostEffects::SetupBackBufferVertex()
+	injector::cstd<void()>::call(0x7043D0); // CPostEffects::SetupBackBufferVertex()
 
-			if (cam)
-			{
-				cam->frameBuffer->nWidth = oriSize.x; // restore
-				cam->frameBuffer->nHeight = oriSize.y;
-			}
-			break;
-		}
+	if (cam)
+	{
+		cam->frameBuffer->nWidth = oriSize.x; // restore
+		cam->frameBuffer->nHeight = oriSize.y;
 	}
 
 	UpdateWidescreenFix();
@@ -869,20 +767,7 @@ void WindowedMode::UpdateWidescreenFix()
 
 	if (!initialized)
 	{
-		switch(gameTitle)
-		{
-			case GameTitle::GTA_3:
-				widescreenFix = GetModuleHandle("GTA3.WidescreenFix.asi");
-				break;
-			
-			case GameTitle::GTA_VC:
-				widescreenFix = GetModuleHandle("GTAVC.WidescreenFix.asi");
-				break;
-			
-			case GameTitle::GTA_SA:
-				widescreenFix = GetModuleHandle("GTASA.WidescreenFix.asi");
-				break;
-		}
+		widescreenFix = GetModuleHandle("GTASA.WidescreenFix.asi");
 
 		if (widescreenFix)
 			updateFunc = GetProcAddress(widescreenFix, "UpdateVars");

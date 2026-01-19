@@ -10,8 +10,8 @@ xcopy /Y \"$(TargetPath)\" \"$(GTA_" .. gameAbbr .. "_DIR)\\scripts\" \r\n\
     debugdir ("$(GTA_" .. gameAbbr .. "_DIR)")
 end
 
-workspace "III.VC.SA.WindowedMode"
-   configurations { "Release", "Gta3", "GtaVC", "GtaSA" }
+workspace "SA.WindowedMode"
+   configurations { "Release", "GtaSA" }
    platforms { "Win32" }
    architecture "x32"
    characterset ("MBCS")
@@ -21,7 +21,7 @@ workspace "III.VC.SA.WindowedMode"
    buildlog ("build/log/%{prj.name}.log")
    buildoptions {"-std:c++latest"}
       
-project "III.VC.SA.WindowedMode"
+project "SA.WindowedMode"
    kind "SharedLib"
    language "C++"
    targetdir "data/%{cfg.buildcfg}"
@@ -47,16 +47,6 @@ project "III.VC.SA.WindowedMode"
    includedirs { "external/injector/include" }
    includedirs { "external/IniReader" }
 
-   filter "configurations:Gta3"
-      defines { "DEBUG" }
-      symbols "on"
-      setupDebugger("III", "gta3.exe")
-      
-   filter "configurations:GtaVC"
-      defines { "DEBUG" }
-      symbols "on"
-      setupDebugger("VC", "gta-vc.exe")
-      
    filter "configurations:GtaSA"
       defines { "DEBUG" }
       symbols "on"

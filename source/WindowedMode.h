@@ -8,19 +8,14 @@ public:
 	static constexpr POINT Resolution_Default = { 640, 448 }; // default GTA's PS2 resolution
 	static constexpr POINT Resolution_Min = { Resolution_Default.x / 4, Resolution_Default.y / 4 };
 
-	enum GameTitle : BYTE { GTA_3, GTA_VC, GTA_SA };
-
-	static void InitGta3();
-	static void InitGtaVC();
 	static void InitGtaSA();
 
 	// game internals
-	const GameTitle gameTitle;
 	GameState& gameState;
-	union{ RsGlobalType* rsGlobal; RsGlobalTypeSA* rsGlobalSA; }; // different in SA
+	RsGlobalTypeSA* rsGlobalSA;
 	WNDPROC oriWindowProc;
 	IDirect3DDevice8* &d3dDevice;
-	union{ D3DPRESENT_PARAMETERS* d3dPresentParams8; D3DPRESENT_PARAMETERS_D3D9* d3dPresentParams9; }; // DirectX 8 or 9
+	D3DPRESENT_PARAMETERS_D3D9* d3dPresentParams9;
 	DisplayMode** rwVideoModes; // array
 	DWORD (*RwEngineGetNumVideoModes)();
 	DWORD (*RwEngineGetCurrentVideoMode)();
@@ -28,7 +23,6 @@ public:
 
 	// constructor taking addresses for specific game version
 	WindowedMode(
-		GameTitle gameTitle,
 		uintptr_t gameState,
 		uintptr_t rsGlobal,
 		uintptr_t d3dDevice,
@@ -86,8 +80,6 @@ public:
 	RECT GetFrameSize(bool paddOnly = false) const; // size of window frame and extra padding/shadow introduced in later versions of Windows
 	
 	// DirectX 3D related stuff
-	bool IsD3D9() const;
-
 	HRESULT static __stdcall D3dPresentHook(IDirect3DDevice8* self, const RECT* srcRect, const RECT* dstRect, HWND wnd, const RGNDATA* region);
 	decltype(D3dPresentHook)* d3dPresentOri;
 

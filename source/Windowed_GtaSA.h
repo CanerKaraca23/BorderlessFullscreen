@@ -3,7 +3,6 @@
 void WindowedMode::InitGtaSA()
 {
 	inst = new WindowedMode(
-		GameTitle::GTA_SA,
 		0xC8D4C0, // gameState
 		0xC17040, // rsGlobal
 		0xC97C28, // d3dDevice

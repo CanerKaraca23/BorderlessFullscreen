@@ -1,19 +1,17 @@
-# Windowed Mode plugin (for GTA3, VC, SA)
+# Windowed Mode plugin for GTA San Andreas
 [DOWNLOAD](https://github.com/ThirteenAG/III.VC.SA.WindowedMode/releases/latest)
 ----
-This plugin allows to run game in window as well in windowed full screen mode.
+This plugin allows to run GTA San Andreas in window as well in windowed full screen mode.
 Originally created by **maxorator** as part of **Maxo's Vehicle Loader** for Vice City.
 
 ----
 ## Installation
 1. [ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases) is required. If you don't have it, just install [Widescreen Fix](https://thirteenag.github.io/wfp#gta), ASI Loader comes with it.
-2. Unpack **III.VC.SA.WindowedMode.asi** into **scripts** folder, or [modloader](https://github.com/thelink2012/modloader/releases) folder.
+2. Unpack **SA.WindowedMode.asi** into **scripts** folder, or [modloader](https://github.com/thelink2012/modloader/releases) folder.
 3. Start the game.
 
 ----
-## Supported games
-* Classic GTA 3 v1.0
-* Classic GTA Vice City v1.0
+## Supported game
 * Classic GTA San Andreas v1.0 US
 
 ----
