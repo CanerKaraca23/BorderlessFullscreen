@@ -20,13 +20,17 @@ workspace "SA.WindowedMode"
    objdir ("build/obj")
    buildlog ("build/log/%{prj.name}.log")
    buildoptions {"-std:c++latest"}
+   flags { "MultiProcessorCompile" }
       
 project "SA.WindowedMode"
    kind "SharedLib"
    language "C++"
    targetdir "data/%{cfg.buildcfg}"
    targetextension ".asi"
+   rtti "Off"  -- Disable RTTI
+   exceptionhandling "Off"  -- Disable exceptions
    
+   defines { "WIN32_LEAN_AND_MEAN", "VC_EXTRALEAN", "NOMINMAX" }  -- Minimize Windows headers
    defines { "rsc_CompanyName=\"ThirteenAG\"" }
    defines { "rsc_LegalCopyright=\"MIT License\""} 
    defines { "rsc_FileVersion=\"1.0.0.0\"", "rsc_ProductVersion=\"1.0.0.0\"" }
@@ -52,5 +56,9 @@ project "SA.WindowedMode"
 
    filter "configurations:Release"
       defines { "NDEBUG" }
-      optimize "on"
+      optimize "Speed"
+      flags { "LinkTimeOptimization", "NoBufferSecurityCheck" }
+      buildoptions { "/Gy", "/Gw", "/GL" }  -- Function-level linking, Whole program optimization, Global data optimization
+      linkoptions { "/LTCG", "/OPT:REF", "/OPT:ICF", "/MERGE:.rdata=.text" }  -- Link-time code gen, Remove unused, Fold identical, Merge sections
+      symbols "Off"  -- Strip debug symbols
       targetdir "data"
