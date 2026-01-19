@@ -5,7 +5,7 @@
 #include "injector/assembly.hpp"
 #include "injector/calling.hpp"
 
-// Minimal D3D type definitions
+// Minimal D3D type definitions needed for the plugin
 typedef DWORD D3DFORMAT;
 typedef DWORD D3DMULTISAMPLE_TYPE;
 typedef DWORD D3DSWAPEFFECT;
@@ -14,14 +14,16 @@ typedef DWORD D3DSWAPEFFECT;
 #define D3DSWAPEFFECT_DISCARD 1
 #define D3DPRESENT_INTERVAL_DEFAULT 0
 
-// Forward declarations
+// Forward declarations for DirectInput
 struct IDirectInputA;
 struct IDirectInputDeviceA;
 typedef IDirectInputA* LPDIRECTINPUT8;
 typedef IDirectInputDeviceA* LPDIRECTINPUTDEVICE8;
+
+// Forward declaration for D3D
 struct IDirect3DDevice8;
 
-// D3D present parameters
+// D3D9 present parameters structure
 typedef struct _D3DPRESENT_PARAMETERS_
 {
 	UINT BackBufferWidth;
@@ -38,7 +40,15 @@ typedef struct _D3DPRESENT_PARAMETERS_
 	DWORD Flags;
 	UINT FullScreen_RefreshRateInHz;
 	UINT FullScreen_PresentationInterval;
-} D3DPRESENT_PARAMETERS;
+} D3DPRESENT_PARAMETERS, D3DPRESENT_PARAMETERS_D3D9;
+
+struct RwVideoMode
+{
+	int32_t width;
+	int32_t height;
+	int32_t depth;
+	int32_t flags;
+};
 
 struct RsPlatformSpecific
 {
@@ -61,6 +71,96 @@ struct RsGlobalTypeSA
 	int frameLimit;
 	int quit;
 	RsPlatformSpecific* ps;
+};
+
+enum RwRasterType
+{
+	rwRASTERTYPENORMAL = 0x00,
+	rwRASTERTYPEZBUFFER = 0x01,
+	rwRASTERTYPECAMERA = 0x02,
+	rwRASTERTYPETEXTURE = 0x04,
+	rwRASTERTYPECAMERATEXTURE = 0x05,
+	rwRASTERTYPEMASK = 0x07,
+	rwRASTERPALETTEVOLATILE = 0x40,
+	rwRASTERDONTALLOCATE = 0x80,
+	rwRASTERTYPEFORCEENUMSIZEINT = ((int32_t)((~((uint32_t)0)) >> 1))
+};
+
+typedef float RwReal;
+struct RwV2d
+{
+	RwReal x;
+	RwReal y;
+};
+
+struct RwV3d
+{
+	RwReal x;
+	RwReal y;
+	RwReal z;
+};
+
+struct RwPlane
+{
+	RwV3d normal;
+	RwReal distance;
+};
+
+struct RwFrustumPlane
+{
+	RwPlane plane;
+	uint8_t closestX;
+	uint8_t closestY;
+	uint8_t closestZ;
+	uint8_t pad;
+};
+
+struct RwBBox
+{
+	RwV3d sup;
+	RwV3d inf;
+};
+
+struct RwRaster
+{
+	RwRaster* pParent;
+	uint8_t* pPixels;
+	uint8_t* pPalette;
+	int32_t nWidth;
+	int32_t nHeight;
+	int32_t nDepth;
+	int32_t nStride;
+	int16_t nOffsetX;
+	int16_t nOffsetY;
+	uint8_t cType;
+	uint8_t cFlags;
+	uint8_t cPrivateFlags;
+	uint8_t cFormat;
+	uint8_t* pOriginalPixels;
+	int32_t nOriginalWidth;
+	int32_t nOriginalHeight;
+	int32_t nOriginalStride;
+};
+
+struct RwCamera
+{
+	char RwObjectHasFrame[20];
+	uint32_t RwCameraProjection;
+	uint32_t RwCameraBeginUpdateFunc;
+	uint32_t RwCameraEndUpdateFunc;
+	char RwMatrix[64];
+	RwRaster* frameBuffer;
+	RwRaster* zBuffer;
+	RwV2d viewWindow;
+	RwV2d recipViewWindow;
+	RwV2d viewOffset;
+	RwReal nearPlane;
+	RwReal farPlane;
+	RwReal fogPlane;
+	RwReal zScale, zShift;
+	RwFrustumPlane frustumPlanes[6];
+	RwBBox frustumBoundBox;
+	RwV3d frustumCorners[8];
 };
 
 enum GameState : DWORD
@@ -86,52 +186,102 @@ struct DisplayMode
 	DWORD flags;
 };
 
-// RenderWare structures (minimal)
-typedef float RwReal;
-struct RwV2d { RwReal x, y; };
-struct RwV3d { RwReal x, y, z; };
-struct RwPlane { RwV3d normal; RwReal distance; };
-struct RwFrustumPlane { RwPlane plane; uint8_t closestX, closestY, closestZ, pad; };
-struct RwBBox { RwV3d sup, inf; };
-
-struct RwRaster
+struct CMenuManagerSA
 {
-	RwRaster* pParent;
-	uint8_t* pPixels;
-	uint8_t* pPalette;
-	int32_t nWidth, nHeight, nDepth, nStride;
-	int16_t nOffsetX, nOffsetY;
-	uint8_t cType, cFlags, cPrivateFlags, cFormat;
-	uint8_t* pOriginalPixels;
-	int32_t nOriginalWidth, nOriginalHeight, nOriginalStride;
+	int8_t m_nStatsScrollDirection;
+	float m_fStatsScrollSpeed;
+	uint8_t m_nSelectedRow;
+	char field_9[23];
+	bool m_PrefsUseVibration;
+	bool m_bHudOn;
+	char field_22[2];
+	int32_t m_nRadarMode;
+	char field_28[4];
+	int32_t m_nTargetBlipIndex;
+	int8_t m_nSysMenu;
+	bool m_DisplayControllerOnFoot;
+	bool m_bDontDrawFrontEnd;
+	bool m_bActivateMenuNextFrame;
+	bool m_bMenuAccessWidescreen;
+	char field_35;
+	char field_36[2];
+	int32_t m_KeyPressedCode;
+	int32_t m_PrefsBrightness;
+	float m_fDrawDistance;
+	bool m_bShowSubtitles;
+	bool m_abPrefsMapBlips[5];
+	bool m_bMapLegend;
+	bool m_bWidescreenOn;
+	bool m_bPrefsFrameLimiter;
+	bool m_bRadioAutoSelect;
+	char field_4E;
+	int8_t m_nSfxVolume;
+	int8_t m_nRadioVolume;
+	bool m_bRadioEq;
+	int8_t m_nRadioStation;
+	char field_53;
+	int32_t m_nCurrentScreenItem;
+	bool m_bQuitGameNoDVD;
+	bool m_bDrawingMap;
+	bool m_bStreamingDisabled;
+	bool m_bAllStreamingStuffLoaded;
+	bool m_bMenuActive;
+	bool m_bStartGameLoading;
+	int8_t m_nGameState;
+	bool m_bIsSaveDone;
+	bool m_bLoadingData;
+	float m_fMapZoom;
+	RwV2d m_vMapOrigin;
+	RwV2d m_vMousePos;
+	bool m_bMapLoaded;
+	int32_t m_nTitleLanguage;
+	int32_t m_nTextLanguage;
+	uint8_t m_nPrefsLanguage;
+	uint8_t m_nPreviousLanguage;
+	int32_t m_SystemLanguage;
+	bool field_8C;
+	int32_t m_ListSelection;
+	int32_t field_94;
+	uint8_t* m_GalleryImgBuffer;
+	char field_9C[16];
+	int32_t m_nUserTrackIndex;
+	int8_t m_nRadioMode;
+	bool m_bInvertPadX1;
+	bool m_bInvertPadY1;
+	bool m_bInvertPadX2;
+	bool m_bInvertPadY2;
+	bool m_bSwapPadAxis1;
+	bool m_bSwapPadAxis2;
+	bool m_RedefiningControls;
+	bool m_DisplayTheMouse;
+	int32_t m_nMousePosX;
+	int32_t m_nMousePosY;
+	bool m_bPrefsMipMapping;
+	bool m_bTracksAutoScan;
+	int32_t m_nPrefsAntialiasing;
+	int32_t m_nDisplayAntialiasing;
+	int8_t m_ControlMethod;
+	int32_t m_nPrefsVideoMode;
+	int32_t m_nDisplayVideoMode;
+	int32_t m_nCurrentRwSubsystem;
+	int32_t m_nMousePosWinX;
+	int32_t m_nMousePosWinY;
+	bool m_bSavePhotos;
+	bool m_bMainMenuSwitch;
+	// incomplete
 };
 
-struct RwCamera
-{
-	char RwObjectHasFrame[20];
-	uint32_t RwCameraProjection;
-	uint32_t RwCameraBeginUpdateFunc;
-	uint32_t RwCameraEndUpdateFunc;
-	char RwMatrix[64];
-	RwRaster* frameBuffer;
-	RwRaster* zBuffer;
-	RwV2d viewWindow, recipViewWindow, viewOffset;
-	RwReal nearPlane, farPlane, fogPlane, zScale, zShift;
-	RwFrustumPlane frustumPlanes[6];
-	RwBBox frustumBoundBox;
-	RwV3d frustumCorners[8];
-};
-
-// Helper functions
 static inline RECT GetMonitorRect(POINT pos)
 {
 	auto monitor = MonitorFromPoint(pos, MONITOR_DEFAULTTONEAREST);
 	MONITORINFO info = { sizeof(MONITORINFO) };
+
 	if (!GetMonitorInfo(monitor, &info))
 	{
 		monitor = MonitorFromPoint(pos, MONITOR_DEFAULTTOPRIMARY);
 		GetMonitorInfo(monitor, &info);
 	}
+
 	return info.rcMonitor;
 }
 
@@ -144,10 +294,12 @@ static inline bool IsCursorInClientRect(HWND wnd)
 {
 	POINT pos;
 	GetCursorPos(&pos);
+
 	RECT rect;
 	GetClientRect(wnd, &rect);
-	ClientToScreen(wnd, (LPPOINT)&rect.left);
-	ClientToScreen(wnd, (LPPOINT)&rect.right);
+	ClientToScreen(wnd, (LPPOINT)&rect.left); // left& top
+	ClientToScreen(wnd, (LPPOINT)&rect.right); // right & bottom
+
 	return PtInRect(&rect, pos);
 }
 
@@ -162,10 +314,13 @@ static inline std::string StringPrintf(const char* format, ...)
 	va_start(args, format);
 	auto len = std::vsnprintf(nullptr, 0, format, args) + 1;
 	va_end(args);
+
 	std::string result(len, '\0');
+
 	va_start(args, format);
 	std::vsnprintf(result.data(), result.length(), format, args);
 	va_end(args);
+
 	return result;
 }
 
@@ -173,7 +328,7 @@ static inline void SetCursorVisible(bool show)
 {
 	int targetState = show ? 0 : -1;
 	int currState = ShowCursor(show);
-	int tries = 128;
+	int tries = 128; // infinite loop prevention
 	while (currState != targetState && tries)
 	{
 		currState = ShowCursor(currState < targetState);
@@ -185,12 +340,14 @@ template <class ... Args>
 static void ShowError(const char* format, Args ... args)
 {
 	auto msg = StringPrintf(format, args...);
+
 	auto wnd = GetActiveWindow();
 	if (wnd)
 	{
 		PostMessage(wnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
 		ShowWindow(wnd, SW_MINIMIZE);
 	}
+
 	SetCursorVisible(true);
 	MessageBoxA(wnd, msg.c_str(), rsc_ProductName, MB_SYSTEMMODAL | MB_ICONERROR);
 }

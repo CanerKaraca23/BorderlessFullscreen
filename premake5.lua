@@ -37,12 +37,8 @@ project "SA.WindowedMode"
    files { "source/*.h" }
    files { "source/*.cpp", "source/*.c" }
    files { "source/*.rc" }
-   files { "external/injector/safetyhook/include/**.hpp", "external/injector/safetyhook/src/**.cpp" }
-   files { "external/injector/zydis/**.h", "external/injector/zydis/**.c" }
 
    includedirs { "source" }
-   includedirs { "external/injector/safetyhook/include" }
-   includedirs { "external/injector/zydis" }
    includedirs { "external/injector/include" }
 
    filter "configurations:GtaSA"
