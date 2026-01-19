@@ -1,0 +1,33 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+    
+    - name: Generate project files
+      run: .\premake5.bat
+    
+    - name: Build project
+      run: msbuild build\III.VC.SA.WindowedMode.sln /p:Configuration=Release /p:Platform=Win32 /m /verbosity:minimal
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: III.VC.SA.WindowedMode
+        path: data\III.VC.SA.WindowedMode.asi
