@@ -1,4 +1,4 @@
-7za a -tzip ".\III.VC.SA.WindowedMode.zip" ".\III.VC.SA.WindowedMode.asi" "..\README.md" "..\CHANGELOG.md"
+7za a -tzip ".\SA.WindowedMode.zip" ".\SA.WindowedMode.asi" "..\README.md" "..\CHANGELOG.md"
 EXIT
 
 7-Zip Extra

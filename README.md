@@ -16,9 +16,9 @@ Originally created by **maxorator** as part of **Maxo's Vehicle Loader** for Vic
 
 ----
 ## Features
-* Forces borderless fullscreen mode
-* Automatic pause/resume on window focus/defocus
-* FPS counter in window title
+* Forces borderless fullscreen mode at native monitor resolution
+* Zero configuration - works out of the box with no settings or hotkeys
+* Minimal and lightweight implementation
 
 ----
 ## Credits
