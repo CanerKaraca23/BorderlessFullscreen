@@ -3,18 +3,6 @@
 #include <dwmapi.h>
 
 #pragma comment(lib, "dwmapi.lib") // DwmGetWindowAttribute
-#pragma comment(lib, "winmm.lib") // timeGetTime
-
-// list of popular display aspect ratios
-const WindowedMode::AspectRatioInfo WindowedMode::AspectRatios[] = {
-	{ "1:1", 1.0f / 1.0f },
-	{ "2:1", 2.0f / 1.0f },
-	{ "4:3", 4.0f / 3.0f },
-	{ "5:4", 5.0f / 4.0f },
-	{ "10:7", 10.0f / 7.0f }, // GTA default aspect
-	{ "16:9", 16.0f / 9.0f },
-	{ "16:10", 16.0f / 10.0f }
-};
 
 WindowedMode::WindowedMode(
 	uintptr_t gameState,
@@ -45,9 +33,6 @@ HWND __stdcall WindowedMode::InitWindow(DWORD dwExStyle, LPCSTR lpClassName, LPC
 		return NULL;
 	}
 	inst->oriWindowProc = oriClass.lpfnWndProc;
-
-	inst->InitConfig();
-	inst->LoadConfig();
 
 	inst->WindowCalculateGeometry();
 	inst->WindowUpdateTitle();
@@ -106,49 +91,9 @@ void WindowedMode::InitD3dDevice()
 	vTable[17] = (uintptr_t)&D3dPresentHook;
 }
 
-void WindowedMode::InitConfig()
-{
-	auto attr = GetFileAttributes(config.GetIniPath().string().c_str());
-	
-	if (attr == INVALID_FILE_ATTRIBUTES) // does not exists
-		SaveConfig();
-}
 
-bool WindowedMode::LoadConfig()
-{
-	menuFrameRateLimit = config.ReadInteger("game", "menuFPS", 30);
-	autoPause = config.ReadInteger("game", "autoPause", true) != false;
-	autoResume = config.ReadInteger("game", "autoResume", true) != false;
 
-	return false;
-}
 
-void WindowedMode::SaveConfig()
-{
-	config.WriteString("game", "menuFPS",		StringPrintf("%d\t\t; frame rate limit for main menu. 0: unlimited", menuFrameRateLimit));
-	config.WriteString("game", "autoPause",		StringPrintf("%d\t\t; pause the game on window deactivation", autoPause));
-	config.WriteString("game", "autoResume",	StringPrintf("%d\t; resume the game on window activation", autoResume));
-}
-
-int WindowedMode::FindAspectRatio(POINT resolution, float treshold)
-{
-	auto ratio = float(resolution.x) / resolution.y;
-
-	// find best match in
-	int idx = -1;
-	float dist = 9999.0f;
-	for (size_t i = 0; i < _countof(AspectRatios); i++)
-	{
-		auto diff = fabs(AspectRatios[i].ratio - ratio);
-		if (diff < dist)
-		{
-			idx = i;
-			dist = diff;
-		}
-	}
-
-	return dist <= treshold ? idx : -1;
-}
 
 DWORD WindowedMode::WindowStyle() const
 {
@@ -243,24 +188,7 @@ void WindowedMode::WindowCalculateGeometry(bool resizeWindow)
 
 void WindowedMode::WindowUpdateTitle()
 {
-	if (HasFocus(window))
-	{
-		std::string aspectTxt;
-		auto idx = FindAspectRatio(windowSizeClient);
-		if (idx != -1)
-		{
-			aspectTxt = StringPrintf(" (%s)", AspectRatios[idx].name);
-		}
-
-		sprintf_s(windowTitle, "%s | %ux%u%s @ %u fps",
-			rsGlobalSA->AppName,
-			windowSizeClient.x,
-			windowSizeClient.y,
-			aspectTxt.c_str(),
-			fpsCounter.get());
-	}
-	else
-		strcpy_s(windowTitle, rsGlobalSA->AppName);
+	sprintf_s(windowTitle, "%s", rsGlobalSA->AppName);
 	
 	if (window)
 		SetWindowText(window, windowTitle);
@@ -276,39 +204,6 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 			auto result = (LOWORD(wParam) == WA_INACTIVE) ?
 				DefWindowProc(wnd, msg, wParam, lParam) : // don't pause game on defocus
 				CallWindowProc(inst->oriWindowProc, wnd, msg, wParam, lParam);
-
-			// handle automatic pause/resume
-			if (inst->gameState == Playing_Game)
-			{
-				switch(LOWORD(wParam))
-				{
-					case WA_INACTIVE:
-						if (inst->autoPause && !inst->IsMainMenuVisible())
-						{
-							inst->SwitchMainMenu(true);
-							inst->autoPauseExecuted = true;
-						}
-						break;
-
-					case WA_CLICKACTIVE: // mouse click
-						if (!IsCursorInClientRect(wnd))
-						{
-							inst->autoPauseExecuted = false;
-							break; // user clicked on the window caption or edge
-						}
-						[[fallthrough]];
-
-					case WA_ACTIVE:
-						if (inst->autoResume && 
-							(!inst->autoPause || inst->autoPauseExecuted) && 
-							inst->IsMainMenuVisible()) // TODO: check if not in some submenu
-						{
-							inst->autoPauseExecuted = false;
-							inst->SwitchMainMenu(false);
-						}
-						break;
-				}
-			}
 
 			inst->WindowUpdateTitle();
 			inst->MouseUpdate(true);
@@ -426,7 +321,6 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 				inst->windowSizeClient = inst->ClientFromSize(inst->windowSize);
 				inst->WindowCalculateGeometry();
 				inst->WindowUpdateTitle();
-				inst->SaveConfig();
 			}
 
 			break;
@@ -481,32 +375,7 @@ RECT WindowedMode::GetFrameSize(bool padOnly) const
 HRESULT WindowedMode::D3dPresentHook(IDirect3DDevice8* self, const RECT* srcRect, const RECT* dstRect, HWND wnd, const RGNDATA* region)
 {
 	inst->MouseUpdate();
-
-	if (inst->fpsCounter.update())
-		inst->WindowUpdateTitle();
-
-	auto result = inst->d3dPresentOri(self, srcRect, dstRect, wnd, region);
-
-	// limit framerate in main menu
-	if (inst->menuFrameRateLimit > 0 && inst->IsMainMenuVisible())
-	{
-		static DWORD prevTime = 0;
-		DWORD currTime = timeGetTime();
-	
-		while (true)
-		{
-			DWORD delta = currTime - prevTime;
-
-			if (delta >= (1000 / (DWORD)inst->menuFrameRateLimit))
-				break;
-
-			Sleep(1);
-			currTime = timeGetTime();
-		}
-		prevTime = currTime;
-	}
-
-	return result;
+	return inst->d3dPresentOri(self, srcRect, dstRect, wnd, region);
 }
 
 HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS* parameters)
@@ -520,21 +389,6 @@ HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS
 		inst->UpdatePostEffect();
 
 	return result;
-}
-
-bool WindowedMode::IsMainMenuVisible() const
-{
-	auto mgr = (CMenuManagerSA*)frontEndMenuManager;
-	return mgr->m_bMenuActive;
-}
-
-void WindowedMode::SwitchMainMenu(bool show)
-{
-	auto mgr = (CMenuManagerSA*)frontEndMenuManager;
-	if (show == mgr->m_bMenuActive) return; // already done
-
-	mgr->m_bActivateMenuNextFrame = show;
-	mgr->m_bDontDrawFrontEnd = !show;
 }
 
 void WindowedMode::MouseUpdate(bool force)
@@ -556,10 +410,7 @@ void WindowedMode::MouseUpdate(bool force)
 	// keep cursor inside the window
 	if (hasFocus || force)
 	{
-		if (!hasFocus || IsMainMenuVisible())
-			ClipCursor(NULL);
-		else
-			ClipCursor(&rect);
+		ClipCursor(hasFocus ? &rect : NULL);
 	}
 }
 

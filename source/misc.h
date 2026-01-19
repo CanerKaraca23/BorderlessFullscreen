@@ -2,47 +2,9 @@
 #include <stdint.h>
 #include "d3d8/d3d8.h"
 #include "d3d8/dinput.h"
-#include "IniReader.h"
 #include "injector/injector.hpp"
 #include "injector/assembly.hpp"
 #include "injector/calling.hpp"
-
-class FpsCounter
-{
-protected:
-	unsigned int fps;
-	unsigned int count;
-	DWORD prevTime;
-
-public:
-	FpsCounter() : fps(30), count(0), prevTime(timeGetTime() / 1000)
-	{
-	}
-
-	bool update()
-	{
-		auto currTime = timeGetTime() / 1000;
-		if (prevTime != currTime)
-		{
-			fps = count;
-			prevTime = currTime;
-			count = 1; // this frame is in next period already
-		}
-		else
-			count++;
-
-		static DWORD prevFps = -1;
-		auto updated = fps != prevFps;
-		prevFps = fps;
-
-		return updated;
-	}
-
-	unsigned int get() const
-	{
-		return fps;
-	}
-};
 
 typedef struct _D3DPRESENT_PARAMETERS_D3D9_
 {

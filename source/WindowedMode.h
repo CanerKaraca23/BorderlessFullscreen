@@ -1,13 +1,9 @@
 #pragma once
 #include "misc.h"
-#include <unordered_map>
 
 class WindowedMode
 {
 public:
-	static constexpr POINT Resolution_Default = { 640, 448 }; // default GTA's PS2 resolution
-	static constexpr POINT Resolution_Min = { Resolution_Default.x / 4, Resolution_Default.y / 4 };
-
 	static void InitGtaSA();
 
 	// game internals
@@ -34,18 +30,7 @@ public:
 	);
 
 	static HWND __stdcall InitWindow(DWORD dwExStyle, LPCSTR lpClassName, LPCSTR lpWindowName, DWORD dwStyle, int X, int Y, int nWidth, int nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam);
-	void InitD3dDevice(); // instal hooks
-
-	// config file
-	CIniReader config;
-	void InitConfig(); // create default ini file
-	bool LoadConfig(); // returns true if maximized
-	void SaveConfig();
-
-	// game window
-	struct AspectRatioInfo { const char* name; float ratio; };
-	static const AspectRatioInfo AspectRatios[];
-	static int FindAspectRatio(POINT resolution, float treshold = 0.007f);
+	void InitD3dDevice(); // install hooks
 
 	HWND window = 0;
 	bool windowUpdating = false; // update in progress
@@ -74,15 +59,6 @@ public:
 	decltype(D3dResetHook)* d3dResetOri;
 
 	// other
-	FpsCounter fpsCounter;
-	bool autoPause = true;
-	bool autoResume = true;
-	bool autoPauseExecuted = false;
-	int menuFrameRateLimit = 30;
-
-	bool IsMainMenuVisible() const;
-	void SwitchMainMenu(bool show);
-	
 	void MouseUpdate(bool force = false);
 	void UpdatePostEffect();
 	void UpdateWidescreenFix();
