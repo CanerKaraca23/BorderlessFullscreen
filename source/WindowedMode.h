@@ -47,16 +47,8 @@ public:
 	static const AspectRatioInfo AspectRatios[];
 	static int FindAspectRatio(POINT resolution, float treshold = 0.007f);
 
-	enum WindowMode : BYTE
-	{
-		Windowed = 1, WindowedBorderless, Fullscreen,
-		Min = Windowed,
-		Max = Fullscreen
-	};
-	
 	HWND window = 0;
 	bool windowUpdating = false; // update in progress
-	WindowMode windowMode = WindowMode::Windowed;
 	HICON windowIcon = NULL;
 	char windowClassName[64];
 	char windowTitle[64];
@@ -69,8 +61,6 @@ public:
 	POINT windowSizeWindowed = Resolution_Default;
 
 	void WindowCalculateGeometry(bool center = false, bool resizeWindow = false);
-	void WindowResize(POINT resolution);
-	void WindowModeCycle();
 	DWORD WindowStyle() const;
 	DWORD WindowStyleEx() const;
 	void WindowUpdateTitle();

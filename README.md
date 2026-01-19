@@ -1,7 +1,7 @@
-# Windowed Mode plugin for GTA San Andreas
+# Borderless Fullscreen plugin for GTA San Andreas
 [DOWNLOAD](https://github.com/ThirteenAG/III.VC.SA.WindowedMode/releases/latest)
 ----
-This plugin allows to run GTA San Andreas in window as well in windowed full screen mode.
+This plugin forces GTA San Andreas to run in borderless fullscreen mode.
 Originally created by **maxorator** as part of **Maxo's Vehicle Loader** for Vice City.
 
 ----
@@ -15,8 +15,10 @@ Originally created by **maxorator** as part of **Maxo's Vehicle Loader** for Vic
 * Classic GTA San Andreas v1.0 US
 
 ----
-## Hotkeys
-* **Alt+Enter**: Toggle between borderless-fullscreen and windowed modes
+## Features
+* Forces borderless fullscreen mode
+* Automatic pause/resume on window focus/defocus
+* FPS counter in window title
 
 ----
 ## Credits

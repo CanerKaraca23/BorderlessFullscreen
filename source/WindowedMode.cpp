@@ -82,7 +82,7 @@ HWND __stdcall WindowedMode::InitWindow(DWORD dwExStyle, LPCSTR lpClassName, LPC
 
 	if (maximize)
 		PostMessage(inst->window, WM_SYSCOMMAND, SC_MAXIMIZE, 0); // maximize and perofm updates
-	else if (inst->windowMode == WindowMode::Windowed)
+	else
 		inst->WindowCalculateGeometry(center, true); // now modern styles border padding can be calculcated
 
 	UpdateWindow(inst->window);
@@ -120,9 +120,6 @@ void WindowedMode::InitConfig()
 
 bool WindowedMode::LoadConfig()
 {
-	windowMode = (WindowMode)config.ReadInteger("window", "mode", WindowMode::Windowed);
-	windowMode = std::clamp(windowMode, WindowMode::Min, WindowMode::Max);
-
 	bool maximize = config.ReadInteger("window", "maximized", 0) != false;
 
 	windowPosWindowed.x = config.ReadInteger("window", "positionX", -1);
@@ -143,7 +140,6 @@ bool WindowedMode::LoadConfig()
 
 void WindowedMode::SaveConfig()
 {
-	config.WriteString("window", "mode",		StringPrintf("%d\t\t\t; 1: window, 2: window borderless, 3: fullscreen", windowMode));
 	config.WriteString("window", "maximized",	StringPrintf("%d", IsZoomed(window)));
 	config.WriteString("window", "positionX",	StringPrintf("%d\t; -1: centered", windowPosWindowed.x));
 	config.WriteString("window", "positionY",	StringPrintf("%d\t; -1: centered", windowPosWindowed.y));
@@ -177,16 +173,12 @@ int WindowedMode::FindAspectRatio(POINT resolution, float treshold)
 
 DWORD WindowedMode::WindowStyle() const
 {
-	return WS_VISIBLE | WS_CLIPSIBLINGS | ((windowMode == WindowMode::Windowed) ?
-		WS_OVERLAPPEDWINDOW :
-		WS_POPUP);
+	return WS_VISIBLE | WS_CLIPSIBLINGS | WS_POPUP;
 }
 
 DWORD WindowedMode::WindowStyleEx() const
 {
-	return (windowMode == WindowMode::Windowed) ?
-		0 : // WS_EX_CLIENTEDGE
-		0;
+	return 0;
 }
 
 void WindowedMode::WindowCalculateGeometry(bool center, bool resizeWindow)
@@ -199,49 +191,16 @@ void WindowedMode::WindowCalculateGeometry(bool center, bool resizeWindow)
 	auto monitorHeight = monitorRect.bottom - monitorRect.top;
 	bool monitorSingle = GetSystemMetrics(SM_CMONITORS) <= 1;
 
-	// size
-	if (windowMode == WindowMode::Fullscreen)
+	// Borderless fullscreen - always use full monitor size
+	if (!IsZoomed(window))
 	{
 		windowPos.x = monitorRect.left;
 		windowPos.y = monitorRect.top;
 		windowSize.x = windowSizeClient.x = monitorWidth;
 		windowSize.y = windowSizeClient.y = monitorHeight;
-	}
-	else if (!IsZoomed(window)) // not maximized windowed modes
-	{
-		windowSize = SizeFromClient(windowSizeWindowed);
-
-		if (monitorSingle) // limit window size to desktop
-		{
-			windowSize.x = min(windowSize.x, monitorWidth);
-			windowSize.y = min(windowSize.y, monitorHeight);
-		}
-
-		windowSizeClient = windowSizeWindowed = ClientFromSize(windowSize);
-
-		// window position
-		if (center)
-		{
-			windowPosWindowed.x = (monitorWidth - windowSize.x) / 2;
-			windowPosWindowed.y = (monitorHeight - windowSize.y) / 2;
-		}
 		
-		if (monitorSingle) // keep entire window on the screen
-		{
-			windowPosWindowed.x = max(windowPosWindowed.x, monitorRect.left);
-			if (windowPosWindowed.x + windowSize.x > monitorRect.right)
-			{
-				windowPosWindowed.x = monitorRect.right - windowSize.x;
-			}
-
-			windowPosWindowed.y = max(windowPosWindowed.y, monitorRect.top);
-			if (windowPosWindowed.y + windowSize.y > monitorRect.bottom)
-			{
-				windowPosWindowed.y = monitorRect.bottom - windowSize.y;
-			}
-		}
-
-		windowPos = windowPosWindowed;
+		windowPosWindowed = windowPos;
+		windowSizeWindowed = windowSizeClient;
 	}
 
 	// apply to the window
@@ -309,41 +268,9 @@ void WindowedMode::WindowCalculateGeometry(bool center, bool resizeWindow)
 	windowUpdating = false;
 }
 
-void WindowedMode::WindowResize(POINT resolution)
-{
-	if (windowMode == WindowMode::Fullscreen)
-		windowMode = WindowMode::Windowed;
-
-	windowSizeWindowed = resolution;
-	WindowCalculateGeometry(false, true); // and resize the window
-	SaveConfig();
-}
-
-void WindowedMode::WindowModeCycle()
-{
-	if (IsIconic(window)) return; // minimized
-
-	if (!HasFocus(window)) return; // window inactive
-
-	if (IsZoomed(window)) // maximized
-	{
-		windowMode = WindowedMode::Min;
-		ShowWindow(window, SW_RESTORE);
-	}
-	else
-	{
-		BYTE& mode = *(BYTE*)&windowMode;
-		mode += 1;
-		if (mode > WindowedMode::Max) mode = WindowedMode::Min;
-	}
-
-	WindowCalculateGeometry(false, true);
-	SaveConfig();
-}
-
 void WindowedMode::WindowUpdateTitle()
 {
-	if (windowMode == WindowMode::Windowed && HasFocus(window))
+	if (HasFocus(window))
 	{
 		std::string aspectTxt;
 		auto idx = FindAspectRatio(windowSizeClient);
@@ -431,13 +358,6 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 			if (!HasFocus(wnd))
 				return DefWindowProc(wnd, msg, wParam, lParam); // bypass the game
 			
-			// handle Alt+Enter key combination
-			if (wParam == VK_RETURN && IsKeyDown(VK_MENU))
-			{
-				inst->WindowModeCycle();
-				return DefWindowProc(wnd, msg, wParam, lParam); // bypass the game
-			}
-
 			break;
 		}
 
@@ -490,62 +410,6 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 			break;
 		}
 
-		// user dragging the window edge
-		case WM_SIZING:
-		{
-			auto wndRect = (RECT*)lParam;
-			auto size = inst->ClientFromSize({
-				wndRect->right - wndRect->left,
-				wndRect->bottom - wndRect->top
-			});
-
-			// minimal game resolution
-			size.x = max(size.x, Resolution_Min.x);
-			size.y = max(size.y, Resolution_Min.y);
-
-			// snap to known aspect ratios
-			auto idx = FindAspectRatio(size, 0.02f);
-			if (idx != -1)
-			{
-				auto currAspect = float(size.x) / size.y;
-
-				switch(wParam)
-				{
-					case WMSZ_LEFT:
-					case WMSZ_RIGHT:
-						size.x = LONG(size.y * AspectRatios[idx].ratio);
-						break;
-
-					case WMSZ_TOP:
-					case WMSZ_BOTTOM:
-						size.y = LONG(size.x / AspectRatios[idx].ratio);
-						break;
-
-					default: // sizing both X and Y
-					{
-						if (currAspect < AspectRatios[idx].ratio)
-							size.x = LONG(size.y * AspectRatios[idx].ratio);
-						else
-							size.y = LONG(size.x / AspectRatios[idx].ratio);
-					}
-				}
-			}
-
-			// update window title immediately
-			inst->windowSizeClient.x = size.x;
-			inst->windowSizeClient.y = size.y;
-			inst->WindowUpdateTitle();
-
-			// apply modified window size
-			size = inst->SizeFromClient(size);
-			if (wParam == WMSZ_LEFT || wParam == WMSZ_TOPLEFT || wParam == WMSZ_BOTTOMLEFT) wndRect->left = wndRect->right - size.x;
-			if (wParam == WMSZ_RIGHT || wParam == WMSZ_TOPRIGHT || wParam == WMSZ_BOTTOMRIGHT) wndRect->right = wndRect->left + size.x;
-			if (wParam == WMSZ_TOP || wParam == WMSZ_TOPLEFT || wParam == WMSZ_TOPRIGHT) wndRect->top = wndRect->bottom - size.y;
-			if (wParam == WMSZ_BOTTOM || wParam == WMSZ_BOTTOMLEFT || wParam == WMSZ_BOTTOMRIGHT) wndRect->bottom = wndRect->top + size.y;
-
-			return DefWindowProc(wnd, msg, wParam, lParam);
-		}
-
 		case WM_EXITSIZEMOVE:
 			inst->WindowCalculateGeometry(false, true);
 
@@ -587,7 +451,7 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 			if (updated)
 			{
 				inst->windowSizeClient = inst->ClientFromSize(inst->windowSize);
-				if (inst->windowMode != WindowMode::Fullscreen && !IsZoomed(wnd))
+				if (!IsZoomed(wnd))
 				{
 					inst->windowPosWindowed = inst->windowPos;
 					inst->windowSizeWindowed = inst->windowSizeClient;
@@ -679,14 +543,8 @@ HRESULT WindowedMode::D3dPresentHook(IDirect3DDevice8* self, const RECT* srcRect
 
 HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS* parameters)
 {
-	if (parameters->BackBufferWidth == inst->windowSizeClient.x && parameters->BackBufferHeight == inst->windowSizeClient.y)
-	{
-		inst->WindowCalculateGeometry(); // update presentation params
-	}
-	else // resolution changed
-	{
-		inst->WindowResize({ (LONG)parameters->BackBufferWidth, (LONG)parameters->BackBufferHeight });
-	}
+	// Always update geometry, ignore resolution changes from game
+	inst->WindowCalculateGeometry();
 
 	auto result = inst->d3dResetOri(self, (D3DPRESENT_PARAMETERS*)inst->d3dPresentParams9);
 
