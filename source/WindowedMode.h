@@ -56,11 +56,8 @@ public:
 	POINT windowPos = {};
 	POINT windowSize = {};
 	POINT windowSizeClient = {};
-	// last properties of windowed mode
-	POINT windowPosWindowed = { -1, -1 };
-	POINT windowSizeWindowed = Resolution_Default;
 
-	void WindowCalculateGeometry(bool center = false, bool resizeWindow = false);
+	void WindowCalculateGeometry(bool resizeWindow = false);
 	DWORD WindowStyle() const;
 	DWORD WindowStyleEx() const;
 	void WindowUpdateTitle();

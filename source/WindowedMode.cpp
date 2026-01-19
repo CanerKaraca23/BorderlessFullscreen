@@ -47,10 +47,9 @@ HWND __stdcall WindowedMode::InitWindow(DWORD dwExStyle, LPCSTR lpClassName, LPC
 	inst->oriWindowProc = oriClass.lpfnWndProc;
 
 	inst->InitConfig();
-	bool maximize = inst->LoadConfig();
-	bool center = (inst->windowPos.x == -1) || (inst->windowPos.y == -1);
+	inst->LoadConfig();
 
-	inst->WindowCalculateGeometry(center);
+	inst->WindowCalculateGeometry();
 	inst->WindowUpdateTitle();
 
 	WNDCLASSA wndClass;
@@ -80,10 +79,7 @@ HWND __stdcall WindowedMode::InitWindow(DWORD dwExStyle, LPCSTR lpClassName, LPC
 		hInstance,
 		0);
 
-	if (maximize)
-		PostMessage(inst->window, WM_SYSCOMMAND, SC_MAXIMIZE, 0); // maximize and perofm updates
-	else
-		inst->WindowCalculateGeometry(center, true); // now modern styles border padding can be calculcated
+	inst->WindowCalculateGeometry(true); // now modern styles border padding can be calculated
 
 	UpdateWindow(inst->window);
 	inst->MouseUpdate(true); // lock cursor in the window until main menu appears
@@ -120,32 +116,15 @@ void WindowedMode::InitConfig()
 
 bool WindowedMode::LoadConfig()
 {
-	bool maximize = config.ReadInteger("window", "maximized", 0) != false;
-
-	windowPosWindowed.x = config.ReadInteger("window", "positionX", -1);
-	windowPosWindowed.y = config.ReadInteger("window", "positionY", -1);
-
-	windowSizeWindowed.x = max(config.ReadInteger("window", "resolutionX", Resolution_Default.x), Resolution_Min.x);
-	windowSizeWindowed.y = max(config.ReadInteger("window", "resolutionY", Resolution_Default.y), Resolution_Min.y);
-	
-	windowPos = windowPosWindowed;
-	windowSize = windowSizeClient = windowSizeWindowed;
-	
 	menuFrameRateLimit = config.ReadInteger("game", "menuFPS", 30);
 	autoPause = config.ReadInteger("game", "autoPause", true) != false;
 	autoResume = config.ReadInteger("game", "autoResume", true) != false;
 
-	return maximize;
+	return false;
 }
 
 void WindowedMode::SaveConfig()
 {
-	config.WriteString("window", "maximized",	StringPrintf("%d", IsZoomed(window)));
-	config.WriteString("window", "positionX",	StringPrintf("%d\t; -1: centered", windowPosWindowed.x));
-	config.WriteString("window", "positionY",	StringPrintf("%d\t; -1: centered", windowPosWindowed.y));
-	config.WriteString("window", "resolutionX",	StringPrintf("%d", windowSizeWindowed.x));
-	config.WriteString("window", "resolutionY",	StringPrintf("%d", windowSizeWindowed.y));
-	
 	config.WriteString("game", "menuFPS",		StringPrintf("%d\t\t; frame rate limit for main menu. 0: unlimited", menuFrameRateLimit));
 	config.WriteString("game", "autoPause",		StringPrintf("%d\t\t; pause the game on window deactivation", autoPause));
 	config.WriteString("game", "autoResume",	StringPrintf("%d\t; resume the game on window activation", autoResume));
@@ -181,30 +160,24 @@ DWORD WindowedMode::WindowStyleEx() const
 	return 0;
 }
 
-void WindowedMode::WindowCalculateGeometry(bool center, bool resizeWindow)
+void WindowedMode::WindowCalculateGeometry(bool resizeWindow)
 {
 	windowUpdating = true;
 
+	// Get primary monitor (default to center of screen if window not yet created)
 	POINT windowCenter = { windowPos.x + windowSize.x / 2, windowPos.y + windowSize.y / 2};
 	auto monitorRect = GetMonitorRect(windowCenter);
 	auto monitorWidth = monitorRect.right - monitorRect.left;
 	auto monitorHeight = monitorRect.bottom - monitorRect.top;
-	bool monitorSingle = GetSystemMetrics(SM_CMONITORS) <= 1;
 
-	// Borderless fullscreen - always use full monitor size
-	if (!IsZoomed(window))
-	{
-		windowPos.x = monitorRect.left;
-		windowPos.y = monitorRect.top;
-		windowSize.x = windowSizeClient.x = monitorWidth;
-		windowSize.y = windowSizeClient.y = monitorHeight;
-		
-		windowPosWindowed = windowPos;
-		windowSizeWindowed = windowSizeClient;
-	}
+	// Borderless fullscreen - always use full monitor size at monitor position
+	windowPos.x = monitorRect.left;
+	windowPos.y = monitorRect.top;
+	windowSize.x = windowSizeClient.x = monitorWidth;
+	windowSize.y = windowSizeClient.y = monitorHeight;
 
 	// apply to the window
-	if (resizeWindow && !IsZoomed(window))
+	if (resizeWindow)
 	{
 		SetWindowLong(window, GWL_STYLE, WindowStyle());
 		SetWindowLong(window, GWL_EXSTYLE, WindowStyleEx());
@@ -411,7 +384,7 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 		}
 
 		case WM_EXITSIZEMOVE:
-			inst->WindowCalculateGeometry(false, true);
+			inst->WindowCalculateGeometry(true);
 
 		// minimize, maximize, restore
 		case WM_SIZE:
@@ -451,11 +424,6 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 			if (updated)
 			{
 				inst->windowSizeClient = inst->ClientFromSize(inst->windowSize);
-				if (!IsZoomed(wnd))
-				{
-					inst->windowPosWindowed = inst->windowPos;
-					inst->windowSizeWindowed = inst->windowSizeClient;
-				}
 				inst->WindowCalculateGeometry();
 				inst->WindowUpdateTitle();
 				inst->SaveConfig();
