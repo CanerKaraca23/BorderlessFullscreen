@@ -83,21 +83,6 @@ struct RsPlatformSpecific
 	LPDIRECTINPUTDEVICE8 diDevice2;
 };
 
-struct RsGlobalType
-{
-	char* AppName;
-	int MaximumWidth;
-	int MaximumHeight;
-	int screenWidth;
-	int screenHeight;
-	int frameLimit;
-	int quit;
-	RsPlatformSpecific* ps;
-	//RsInputDevice keyboard;
-	//RsInputDevice mouse;
-	//RsInputDevice pad;
-};
-
 struct RsGlobalTypeSA
 {
 	char* AppName;
@@ -236,91 +221,6 @@ struct DisplayMode
 	D3DFORMAT format;
 
 	DWORD flags;
-};
-
-struct CMenuManager3
-{
-	int32_t m_nPrefsVideoMode;
-	int32_t m_nDisplayVideoMode;
-	int8_t m_nPrefsAudio3DProviderIndex;
-	bool m_bKeyChangeNotProcessed;
-	char m_aSkinName[256];
-	int32_t m_nHelperTextMsgId;
-	bool m_bLanguageLoaded;
-	bool m_bMenuActive;
-	bool m_bMenuStateChanged;
-	bool m_bWaitingForNewKeyBind;
-	bool m_bWantToRestart;
-	bool m_bFirstTime;
-	bool m_bGameNotLoaded;
-	int32_t m_nMousePosX;
-	int32_t m_nMousePosY;
-	int32_t m_nMouseTempPosX;
-	int32_t m_nMouseTempPosY;
-	bool m_bShowMouse;
-	// incomplete
-};
-
-struct CMenuManagerVC
-{
-	int8_t m_StatsScrollDirection;
-	float m_StatsScrollSpeed;
-	uint8_t field_8;
-	bool m_PrefsUseVibration;
-	bool m_PrefsShowHud;
-	int32_t m_PrefsRadarMode;
-	bool m_DisplayControllerOnFoot;
-	bool m_bShutDownFrontEndRequested;
-	bool m_bStartUpFrontEndRequested;
-	int32_t m_KeyPressedCode;
-	int32_t m_PrefsBrightness;
-	float m_PrefsLOD;
-	int8_t m_PrefsShowSubtitles;
-	int8_t m_PrefsShowLegends;
-	int8_t m_PrefsUseWideScreen;
-	int8_t m_PrefsVsync;
-	int8_t m_PrefsVsyncDisp;
-	int8_t m_PrefsFrameLimiter;
-	int8_t m_nPrefsAudio3DProviderIndex;
-	int8_t m_PrefsSpeakers;
-	int8_t m_PrefsDMA;
-	int8_t m_PrefsSfxVolume;
-	int8_t m_PrefsMusicVolume;
-	int8_t m_PrefsRadioStation;
-	uint8_t m_PrefsStereoMono;
-	int32_t m_nCurrOption;
-	bool m_bQuitGameNoCD;
-	bool m_bMenuMapActive;
-	bool m_AllowNavigation;
-	uint8_t field_37;
-	bool m_bMenuActive;
-	bool m_bWantToRestart;
-	bool m_bFirstTime;
-	bool m_bActivateSaveMenu;
-	bool m_bWantToLoad;
-	float m_fMapSize;
-	float m_fMapCenterX;
-	float m_fMapCenterY;
-	uint32_t OS_Language;
-	int32_t m_PrefsLanguage;
-	int32_t field_54;
-	int8_t m_bLanguageLoaded;
-	uint8_t m_PrefsAllowNastyGame;
-	int8_t m_PrefsMP3BoostVolume;
-	int8_t m_ControlMethod;
-	int32_t m_nPrefsVideoMode;
-	int32_t m_nDisplayVideoMode;
-	int32_t m_nMouseTempPosX;
-	int32_t m_nMouseTempPosY;
-	bool m_bGameNotLoaded;
-	int8_t m_lastWorking3DAudioProvider;
-	bool m_bFrontEnd_ReloadObrTxtGxt;
-	int32_t* pEditString;
-	uint8_t field_74[4];
-	int32_t* pControlEdit;
-	bool m_OnlySaveMenu;
-	int32_t m_firstStartCounter;
-	// incomplete
 };
 
 struct CMenuManagerSA
