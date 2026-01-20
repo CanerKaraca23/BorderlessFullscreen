@@ -1,13 +1,13 @@
 # Borderless Fullscreen plugin for GTA San Andreas
-[DOWNLOAD](https://github.com/ThirteenAG/III.VC.SA.WindowedMode/releases/latest)
+[DOWNLOAD](https://github.com/CanerKaraca23/BorderlessFullscreen/releases/latest)
 ----
 This plugin forces GTA San Andreas to run in borderless fullscreen mode.
-Originally created by **maxorator** as part of **Maxo's Vehicle Loader** for Vice City.
+Originally created by **maxorator** as part of **Maxo's Vehicle Loader** for Vice City. Forked from **III.VC.SA.WindowedMode** mod.
 
 ----
 ## Installation
-1. [ASI Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases) is required. If you don't have it, just install [Widescreen Fix](https://thirteenag.github.io/wfp#gta), ASI Loader comes with it.
-2. Unpack **BorderlessFullscreen.asi** into **scripts** folder, or [modloader](https://github.com/thelink2012/modloader/releases) folder.
+1. ASI Loader is required.
+2. Unpack **BorderlessFullscreen.asi** into **scripts** folder, root folder or [modloader](https://github.com/thelink2012/modloader/releases) folder.
 3. Start the game.
 
 ----
@@ -26,6 +26,7 @@ Originally created by **maxorator** as part of **Maxo's Vehicle Loader** for Vic
 * **ThirteenAG** - ported into stand-alone ASI plugin
 * **not6** - fixed Alt key problems
 * **Miran** - rewritten into version 2.0
+* **ThirteenAG** - for III.VC.SA.WindowedMode mod
 
 ----
 ## Screenshots
