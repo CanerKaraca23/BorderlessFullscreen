@@ -82,6 +82,7 @@ public:
 	D3DPRESENT_PARAMETERS* d3dPresentParams;
 	DisplayMode** rwVideoModes;
 	DWORD (*RwEngineGetCurrentVideoMode)();
+	HICON windowIcon = NULL;
 
 	WindowedMode(
 		uintptr_t rsGlobal,
@@ -139,7 +140,7 @@ HWND __stdcall WindowedMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, 
 	WNDCLASSA wndClass = {};
 	wndClass.hInstance = hInstance;
 	wndClass.lpszClassName = inst->windowClassName;
-	wndClass.hIcon = NULL;
+	wndClass.hIcon = inst->windowIcon;
 	wndClass.hCursor = LoadCursor(hInstance, IDC_ARROW);
 	wndClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
 	wndClass.lpfnWndProc = &WindowedMode::WindowProc;
@@ -270,6 +271,7 @@ void WindowedMode::InitGtaSA()
 	);
 
 	strcpy_s(inst->windowClassName, "Grand theft auto San Andreas");
+	inst->windowIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(100));
 
 	injector::MakeNOP(0x7455D5, 6);
 	injector::MakeCALL(0x7455D5, WindowedMode::InitWindow);
