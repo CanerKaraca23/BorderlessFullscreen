@@ -30,4 +30,4 @@ jobs:
       uses: actions/upload-artifact@v6
       with:
         name: BorderlessFullscreen
-        path: data\BorderlessFullscreen.asi
+        path: bin\BorderlessFullscreen.asi
