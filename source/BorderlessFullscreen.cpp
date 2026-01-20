@@ -61,6 +61,7 @@ struct D3DPRESENT_PARAMETERS
 namespace
 {
 	constexpr const char* kWindowClassName = "Grand theft auto San Andreas";
+	constexpr int kGameIconResource = 100;
 	constexpr auto kRsGlobalAddr = 0xC17040;
 	constexpr auto kD3dDeviceAddr = 0xC97C28;
 	constexpr auto kPresentParamsAddr = 0xC9C040;
@@ -68,7 +69,7 @@ namespace
 	constexpr auto kRwEngineGetCurrentVideoModeAddr = 0x7F2D20;
 }
 
-static inline RECT GetMonitorRect(POINT pos)
+static inline RECT GetMonitorRect(const POINT pos)
 {
 	auto monitor = MonitorFromPoint(pos, MONITOR_DEFAULTTONEAREST);
 	MONITORINFO info = { sizeof(MONITORINFO) };
@@ -104,15 +105,10 @@ public:
 	void InitD3dDevice();
 	void ApplyPresentationParams();
 
-	HWND window = 0;
+	HWND window = nullptr;
 	bool isUpdating = false;
-	POINT windowPos = {};
-	POINT windowSize = {};
-	POINT windowSizeClient = {};
 
 	void WindowCalculateGeometry(bool resizeWindow = false);
-	DWORD WindowStyle() const;
-	DWORD WindowStyleEx() const;
 	static LRESULT APIENTRY WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 	HRESULT static __stdcall D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS* parameters);
@@ -158,12 +154,11 @@ HWND __stdcall BorderlessMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int
 	RegisterClass(&wndClass);
 
 	inst->window = CreateWindowEx(
-		inst->WindowStyleEx(),
+		0,
 		kWindowClassName,
 		inst->rsGlobalSA->AppName,
-		inst->WindowStyle(),
-		inst->windowPos.x, inst->windowPos.y,
-		inst->windowSize.x, inst->windowSize.y,
+		WS_VISIBLE | WS_CLIPSIBLINGS | WS_POPUP,
+		0, 0, 0, 0,
 		nullptr,
 		nullptr,
 		hInstance,
@@ -189,27 +184,15 @@ void BorderlessMode::InitD3dDevice()
 	vTable[16] = (uintptr_t)&D3dResetHook;
 }
 
-DWORD BorderlessMode::WindowStyle() const
-{
-	return WS_VISIBLE | WS_CLIPSIBLINGS | WS_POPUP;
-}
-
-DWORD BorderlessMode::WindowStyleEx() const
-{
-	return 0;
-}
-
 void BorderlessMode::ApplyPresentationParams()
 {
 	rsGlobalSA->ps->fullScreen = false;
 	rsGlobalSA->ps->window = window;
-	rsGlobalSA->MaximumWidth = windowSizeClient.x;
-	rsGlobalSA->MaximumHeight = windowSizeClient.y;
 
 	d3dPresentParams->Windowed = TRUE;
 	d3dPresentParams->hDeviceWindow = window;
-	d3dPresentParams->BackBufferWidth = windowSizeClient.x;
-	d3dPresentParams->BackBufferHeight = windowSizeClient.y;
+	d3dPresentParams->BackBufferWidth = rsGlobalSA->MaximumWidth;
+	d3dPresentParams->BackBufferHeight = rsGlobalSA->MaximumHeight;
 	d3dPresentParams->BackBufferFormat = D3DFMT_A8R8G8B8;
 	d3dPresentParams->SwapEffect = D3DSWAPEFFECT_DISCARD;
 	d3dPresentParams->FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
@@ -220,21 +203,25 @@ void BorderlessMode::WindowCalculateGeometry(bool resizeWindow)
 {
 	isUpdating = true;
 
-	POINT windowCenter = { windowPos.x + windowSize.x / 2, windowPos.y + windowSize.y / 2 };
-	auto monitorRect = GetMonitorRect(windowCenter);
-	auto monitorWidth = monitorRect.right - monitorRect.left;
-	auto monitorHeight = monitorRect.bottom - monitorRect.top;
+	RECT windowRect;
+	if (!GetWindowRect(window, &windowRect))
+	{
+		windowRect = {};
+	}
 
-	windowPos.x = monitorRect.left;
-	windowPos.y = monitorRect.top;
-	windowSize.x = windowSizeClient.x = monitorWidth;
-	windowSize.y = windowSizeClient.y = monitorHeight;
+	const POINT windowCenter = { (windowRect.left + windowRect.right) / 2, (windowRect.top + windowRect.bottom) / 2 };
+	const auto monitorRect = GetMonitorRect(windowCenter);
+	const auto width = monitorRect.right - monitorRect.left;
+	const auto height = monitorRect.bottom - monitorRect.top;
+
+	rsGlobalSA->MaximumWidth = width;
+	rsGlobalSA->MaximumHeight = height;
 
 	if (resizeWindow && window)
 	{
-		SetWindowLong(window, GWL_STYLE, WindowStyle());
-		SetWindowLong(window, GWL_EXSTYLE, WindowStyleEx());
-		SetWindowPos(window, HWND_TOP, windowPos.x, windowPos.y, windowSize.x, windowSize.y,
+		SetWindowLong(window, GWL_STYLE, WS_VISIBLE | WS_CLIPSIBLINGS | WS_POPUP);
+		SetWindowLong(window, GWL_EXSTYLE, 0);
+		SetWindowPos(window, HWND_TOP, monitorRect.left, monitorRect.top, width, height,
 			SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 	}
 
@@ -243,8 +230,8 @@ void BorderlessMode::WindowCalculateGeometry(bool resizeWindow)
 	if (*rwVideoModes)
 	{
 		auto& mode = (*rwVideoModes)[RwEngineGetCurrentVideoMode()];
-		mode.width = windowSizeClient.x;
-		mode.height = windowSizeClient.y;
+		mode.width = rsGlobalSA->MaximumWidth;
+		mode.height = rsGlobalSA->MaximumHeight;
 		mode.format = d3dPresentParams->BackBufferFormat;
 		mode.refreshRate = d3dPresentParams->FullScreen_RefreshRateInHz;
 		mode.flags &= ~1;
@@ -283,7 +270,7 @@ void BorderlessMode::InitGtaSA()
 		kRwVideoModesAddr,
 		kRwEngineGetCurrentVideoModeAddr
 	);
-	inst->windowIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(100));
+	inst->windowIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(kGameIconResource));
 
 	injector::MakeNOP(0x7455D5, 6);
 	injector::MakeCALL(0x7455D5, BorderlessMode::InitWindow);
