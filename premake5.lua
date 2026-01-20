@@ -1,17 +1,5 @@
-
-function setupDebugger(gameAbbr, gameExeName)
-    postbuildcommands { "\
-if defined GTA_" .. gameAbbr .. "_DIR ( \r\n\
-taskkill /IM " .. gameExeName .. " /F /FI \"STATUS eq RUNNING\" \r\n\
-xcopy /Y \"$(TargetPath)\" \"$(GTA_" .. gameAbbr .. "_DIR)\\scripts\" \r\n\
-)" }
-
-    debugcommand ("$(GTA_" .. gameAbbr .. "_DIR)\\" .. gameExeName)
-    debugdir ("$(GTA_" .. gameAbbr .. "_DIR)")
-end
-
 workspace "BorderlessFullscreen"
-   configurations { "Release", "GtaSA" }
+   configurations { "Release" }
    platforms { "Win32" }
    architecture "x32"
    characterset ("MBCS")
@@ -30,14 +18,14 @@ project "BorderlessFullscreen"
    rtti "Off"  -- Disable RTTI
    exceptionhandling "Off"  -- Disable exceptions
    
-   defines { "WIN32_LEAN_AND_MEAN", "VC_EXTRALEAN" }  -- Minimize Windows headers
+   defines { "WIN32_LEAN_AND_MEAN", "VC_EXTRALEAN" }
    defines { "_CRT_SECURE_NO_WARNINGS" }
-   defines { "rsc_CompanyName=\"ThirteenAG\"" }
+   defines { "rsc_CompanyName=\"CanerKaraca\"" }
    defines { "rsc_LegalCopyright=\"MIT License\""}
    defines { "rsc_FileVersion=\"1.0.0.0\"", "rsc_ProductVersion=\"1.0.0.0\"" }
    defines { "rsc_InternalName=\"%{prj.name}\"", "rsc_ProductName=\"%{prj.name}\"", "rsc_OriginalFilename=\"%{prj.name}.asi\"" }
-   defines { "rsc_FileDescription=\"https://github.com/ThirteenAG\"" }
-   defines { "rsc_UpdateUrl=\"https://github.com/ThirteenAG/III.VC.SA.WindowedMode\"" }
+   defines { "rsc_FileDescription=\"https://github.com/CanerKaraca23/BorderlessFullscreen\"" }
+   defines { "rsc_UpdateUrl=\"https://github.com/CanerKaraca23/BorderlessFullscreen\"" }
    
    files { "source/*.cpp" }
    files { "external/injector/safetyhook/include/**.hpp", "external/injector/safetyhook/src/**.cpp" }
@@ -47,17 +35,12 @@ project "BorderlessFullscreen"
    includedirs { "external/injector/safetyhook/include" }
    includedirs { "external/injector/zydis" }
 
-   filter "configurations:GtaSA"
-      defines { "DEBUG" }
-      symbols "on"
-      setupDebugger("SA", "gta_sa.exe")
-
    filter "configurations:Release"
       defines { "NDEBUG" }
       optimize "Speed"
       linktimeoptimization "On"
       flags { "NoBufferSecurityCheck" }
-      buildoptions { "/Gy", "/Gw", "/GL" }  -- Function-level linking, Whole program optimization, Global data optimization
-      linkoptions { "/LTCG", "/OPT:REF", "/OPT:ICF", "/MERGE:.rdata=.text" }  -- Link-time code gen, Remove unused, Fold identical, Merge sections
-      symbols "Off"  -- Strip debug symbols
+      buildoptions { "/O2", "/Os", "/GL", "/Gy", "/Gw", "/Zc:inline", "/GS-" }
+      linkoptions { "/LTCG", "/OPT:REF", "/OPT:ICF", "/MERGE:.rdata=.text", "/OPT:NOWIN98", "/IGNORE:4075" }
+      symbols "Off"
       targetdir "bin"
