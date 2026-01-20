@@ -10,12 +10,10 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    permissions:
-      contents: read
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: recursive
     
@@ -29,7 +27,7 @@ jobs:
       run: msbuild build\BorderlessFullscreen.sln /p:Configuration=Release /p:Platform=Win32 /m /verbosity:minimal
     
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: BorderlessFullscreen
         path: data\BorderlessFullscreen.asi
