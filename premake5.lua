@@ -25,7 +25,7 @@ workspace "BorderlessFullscreen"
 project "BorderlessFullscreen"
    kind "SharedLib"
    language "C++"
-   targetdir "data/%{cfg.buildcfg}"
+   targetdir "bin/%{cfg.buildcfg}"
    targetextension ".asi"
    rtti "Off"  -- Disable RTTI
    exceptionhandling "Off"  -- Disable exceptions
@@ -61,4 +61,4 @@ project "BorderlessFullscreen"
       buildoptions { "/Gy", "/Gw", "/GL" }  -- Function-level linking, Whole program optimization, Global data optimization
       linkoptions { "/LTCG", "/OPT:REF", "/OPT:ICF", "/MERGE:.rdata=.text" }  -- Link-time code gen, Remove unused, Fold identical, Merge sections
       symbols "Off"  -- Strip debug symbols
-      targetdir "data"
+      targetdir "bin"
