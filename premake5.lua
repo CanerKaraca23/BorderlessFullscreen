@@ -55,7 +55,8 @@ project "BorderlessFullscreen"
    filter "configurations:Release"
       defines { "NDEBUG" }
       optimize "Speed"
-      flags { "LinkTimeOptimization", "NoBufferSecurityCheck" }
+      linktimeoptimization "On"
+      flags { "NoBufferSecurityCheck" }
       buildoptions { "/Gy", "/Gw", "/GL" }  -- Function-level linking, Whole program optimization, Global data optimization
       linkoptions { "/LTCG", "/OPT:REF", "/OPT:ICF", "/MERGE:.rdata=.text" }  -- Link-time code gen, Remove unused, Fold identical, Merge sections
       symbols "Off"  -- Strip debug symbols
