@@ -1,17 +1,16 @@
 // Single-file minimal borderless fullscreen plugin for GTA SA 1.0 US
 #include <windows.h>
-#include <cstring>
 
 #include "injector/injector.hpp"
 #include "injector/assembly.hpp"
 
-typedef DWORD D3DFORMAT;
-typedef DWORD D3DMULTISAMPLE_TYPE;
-typedef DWORD D3DSWAPEFFECT;
+using D3DFORMAT = DWORD;
+using D3DMULTISAMPLE_TYPE = DWORD;
+using D3DSWAPEFFECT = DWORD;
 
-#define D3DFMT_A8R8G8B8 21
-#define D3DSWAPEFFECT_DISCARD 1
-#define D3DPRESENT_INTERVAL_DEFAULT 0
+constexpr D3DFORMAT D3DFMT_A8R8G8B8 = 21;
+constexpr D3DSWAPEFFECT D3DSWAPEFFECT_DISCARD = 1;
+constexpr DWORD D3DPRESENT_INTERVAL_DEFAULT = 0;
 
 struct IDirect3DDevice8;
 
@@ -41,7 +40,7 @@ struct DisplayMode
 	DWORD flags;
 };
 
-typedef struct _D3DPRESENT_PARAMETERS_
+struct D3DPRESENT_PARAMETERS
 {
 	UINT BackBufferWidth;
 	UINT BackBufferHeight;
@@ -57,7 +56,17 @@ typedef struct _D3DPRESENT_PARAMETERS_
 	DWORD Flags;
 	UINT FullScreen_RefreshRateInHz;
 	UINT FullScreen_PresentationInterval;
-} D3DPRESENT_PARAMETERS;
+};
+
+namespace
+{
+	constexpr const char* kWindowClassName = "Grand theft auto San Andreas";
+	constexpr auto kRsGlobalAddr = 0xC17040;
+	constexpr auto kD3dDeviceAddr = 0xC97C28;
+	constexpr auto kPresentParamsAddr = 0xC9C040;
+	constexpr auto kRwVideoModesAddr = 0xC97C48;
+	constexpr auto kRwEngineGetCurrentVideoModeAddr = 0x7F2D20;
+}
 
 static inline RECT GetMonitorRect(POINT pos)
 {
@@ -82,7 +91,7 @@ public:
 	D3DPRESENT_PARAMETERS* d3dPresentParams;
 	DisplayMode** rwVideoModes;
 	DWORD (*RwEngineGetCurrentVideoMode)();
-	HICON windowIcon = NULL;
+	HICON windowIcon = nullptr;
 
 	WindowedMode(
 		uintptr_t rsGlobal,
@@ -93,10 +102,10 @@ public:
 
 	static HWND __stdcall InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
 	void InitD3dDevice();
+	void ApplyPresentationParams();
 
 	HWND window = 0;
 	bool windowUpdating = false;
-	char windowClassName[64];
 	POINT windowPos = {};
 	POINT windowSize = {};
 	POINT windowSizeClient = {};
@@ -129,9 +138,9 @@ WindowedMode::WindowedMode(
 HWND __stdcall WindowedMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE hInstance, LPVOID)
 {
 	WNDCLASSA oriClass;
-	if (!GetClassInfo(hInstance, inst->windowClassName, &oriClass))
+	if (!GetClassInfo(hInstance, kWindowClassName, &oriClass))
 	{
-		return NULL;
+		return nullptr;
 	}
 	inst->oriWindowProc = oriClass.lpfnWndProc;
 
@@ -139,26 +148,26 @@ HWND __stdcall WindowedMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, 
 
 	WNDCLASSA wndClass = {};
 	wndClass.hInstance = hInstance;
-	wndClass.lpszClassName = inst->windowClassName;
+	wndClass.lpszClassName = kWindowClassName;
 	wndClass.hIcon = inst->windowIcon;
 	wndClass.hCursor = LoadCursor(hInstance, IDC_ARROW);
 	wndClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
 	wndClass.lpfnWndProc = &WindowedMode::WindowProc;
 
-	UnregisterClass(inst->windowClassName, hInstance);
+	UnregisterClass(kWindowClassName, hInstance);
 	RegisterClass(&wndClass);
 
 	inst->window = CreateWindowEx(
 		inst->WindowStyleEx(),
-		inst->windowClassName,
+		kWindowClassName,
 		inst->rsGlobalSA->AppName,
 		inst->WindowStyle(),
 		inst->windowPos.x, inst->windowPos.y,
 		inst->windowSize.x, inst->windowSize.y,
-		NULL,
-		NULL,
+		nullptr,
+		nullptr,
 		hInstance,
-		0);
+		nullptr);
 
 	inst->WindowCalculateGeometry(true);
 
@@ -190,6 +199,23 @@ DWORD WindowedMode::WindowStyleEx() const
 	return 0;
 }
 
+void WindowedMode::ApplyPresentationParams()
+{
+	rsGlobalSA->ps->fullScreen = false;
+	rsGlobalSA->ps->window = window;
+	rsGlobalSA->MaximumWidth = windowSizeClient.x;
+	rsGlobalSA->MaximumHeight = windowSizeClient.y;
+
+	d3dPresentParams->Windowed = TRUE;
+	d3dPresentParams->hDeviceWindow = window;
+	d3dPresentParams->BackBufferWidth = windowSizeClient.x;
+	d3dPresentParams->BackBufferHeight = windowSizeClient.y;
+	d3dPresentParams->BackBufferFormat = D3DFMT_A8R8G8B8;
+	d3dPresentParams->SwapEffect = D3DSWAPEFFECT_DISCARD;
+	d3dPresentParams->FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+	d3dPresentParams->FullScreen_RefreshRateInHz = 0;
+}
+
 void WindowedMode::WindowCalculateGeometry(bool resizeWindow)
 {
 	windowUpdating = true;
@@ -212,19 +238,7 @@ void WindowedMode::WindowCalculateGeometry(bool resizeWindow)
 			SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 	}
 
-	rsGlobalSA->ps->fullScreen = false;
-	rsGlobalSA->ps->window = window;
-	rsGlobalSA->MaximumWidth = windowSizeClient.x;
-	rsGlobalSA->MaximumHeight = windowSizeClient.y;
-
-	d3dPresentParams->Windowed = TRUE;
-	d3dPresentParams->hDeviceWindow = window;
-	d3dPresentParams->BackBufferWidth = windowSizeClient.x;
-	d3dPresentParams->BackBufferHeight = windowSizeClient.y;
-	d3dPresentParams->BackBufferFormat = D3DFMT_A8R8G8B8;
-	d3dPresentParams->SwapEffect = D3DSWAPEFFECT_DISCARD;
-	d3dPresentParams->FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
-	d3dPresentParams->FullScreen_RefreshRateInHz = 0;
+	ApplyPresentationParams();
 
 	if (*rwVideoModes)
 	{
@@ -257,20 +271,18 @@ HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS
 {
 	(void)parameters; // unused in hook; we use stored params instead
 	inst->WindowCalculateGeometry();
-	return inst->d3dResetOri(self, (D3DPRESENT_PARAMETERS*)inst->d3dPresentParams);
+	return inst->d3dResetOri(self, inst->d3dPresentParams);
 }
 
 void WindowedMode::InitGtaSA()
 {
 	inst = new WindowedMode(
-		0xC17040, // rsGlobal
-		0xC97C28, // d3dDevice
-		0xC9C040, // d3dPresentParams
-		0xC97C48, // rwVideoModes
-		0x7F2D20  // RwEngineGetCurrentVideoMode
+		kRsGlobalAddr,
+		kD3dDeviceAddr,
+		kPresentParamsAddr,
+		kRwVideoModesAddr,
+		kRwEngineGetCurrentVideoModeAddr
 	);
-
-	strcpy_s(inst->windowClassName, "Grand theft auto San Andreas");
 	inst->windowIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(100));
 
 	injector::MakeNOP(0x7455D5, 6);
@@ -285,14 +297,14 @@ void WindowedMode::InitGtaSA()
 		}
 	}; injector::MakeInline<Patch_InitPresentationParams>(0x7F670A, 0x7F6710);
 
-	struct Path_InitD3dDevice
+	struct Patch_InitD3dDevice
 	{
 		void operator()(injector::reg_pack& regs)
 		{
 			*(DWORD*)(0xC9808C) = regs.ebp;
 			inst->InitD3dDevice();
 		}
-	}; injector::MakeInline<Path_InitD3dDevice>(0x7F6800, 0x7F6806);
+	}; injector::MakeInline<Patch_InitD3dDevice>(0x7F6800, 0x7F6806);
 }
 
 BOOL APIENTRY DllMain(HMODULE, DWORD reason, LPVOID)
