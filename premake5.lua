@@ -41,6 +41,6 @@ project "BorderlessFullscreen"
       linktimeoptimization "On"
       flags { "NoBufferSecurityCheck" }
       buildoptions { "/O2", "/Os", "/GL", "/Gy", "/Gw", "/Zc:inline", "/GS-" }
-      linkoptions { "/LTCG", "/OPT:REF", "/OPT:ICF", "/MERGE:.rdata=.text", "/OPT:NOWIN98", "/IGNORE:4075" }
+      linkoptions { "/LTCG", "/OPT:REF", "/OPT:ICF", "/MERGE:.rdata=.text", "/IGNORE:4075" }
       symbols "Off"
       targetdir "bin"
