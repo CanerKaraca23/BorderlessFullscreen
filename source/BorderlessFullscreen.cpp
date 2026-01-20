@@ -1,7 +1,6 @@
 // Single-file minimal borderless fullscreen plugin for GTA SA 1.0 US
 #include <windows.h>
-#include <cstdint>
-#include <cstdio>
+#include <cstring>
 
 #include "injector/injector.hpp"
 #include "injector/assembly.hpp"
@@ -31,20 +30,6 @@ struct RsGlobalTypeSA
 	int frameLimit;
 	int quit;
 	RsPlatformSpecific* ps;
-};
-
-enum GameState : DWORD
-{
-	Startup,
-	Init_Logo_Mpeg,
-	Logo_Mpeg,
-	Init_Intro_Mpeg,
-	Intro_Mpeg,
-	Init_Once,
-	Init_Frontend,
-	Frontend,
-	Init_Playing_Game,
-	Playing_Game,
 };
 
 struct DisplayMode
@@ -91,22 +76,18 @@ class WindowedMode
 public:
 	static void InitGtaSA();
 
-	GameState& gameState;
 	RsGlobalTypeSA* rsGlobalSA;
 	WNDPROC oriWindowProc;
 	IDirect3DDevice8*& d3dDevice;
 	D3DPRESENT_PARAMETERS* d3dPresentParams;
 	DisplayMode** rwVideoModes;
-	DWORD (*RwEngineGetNumVideoModes)();
 	DWORD (*RwEngineGetCurrentVideoMode)();
 
 	WindowedMode(
-		uintptr_t gameState,
 		uintptr_t rsGlobal,
 		uintptr_t d3dDevice,
 		uintptr_t d3dPresentParams,
 		uintptr_t rwVideoModes,
-		uintptr_t RwEngineGetNumVideoModes,
 		uintptr_t RwEngineGetCurrentVideoMode);
 
 	static HWND __stdcall InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE, LPVOID);
@@ -114,9 +95,7 @@ public:
 
 	HWND window = 0;
 	bool windowUpdating = false;
-	HICON windowIcon = NULL;
 	char windowClassName[64];
-	char windowTitle[64];
 	POINT windowPos = {};
 	POINT windowSize = {};
 	POINT windowSizeClient = {};
@@ -133,20 +112,17 @@ public:
 static WindowedMode* inst = nullptr;
 
 WindowedMode::WindowedMode(
-	uintptr_t gameState,
 	uintptr_t rsGlobal,
 	uintptr_t d3dDevice,
 	uintptr_t d3dPresentParams,
 	uintptr_t rwVideoModes,
-	uintptr_t RwEngineGetNumVideoModes,
 	uintptr_t RwEngineGetCurrentVideoMode)
-	: gameState(*(GameState*)gameState),
-	rsGlobalSA((RsGlobalTypeSA*)rsGlobal),
-	d3dDevice(*(IDirect3DDevice8**)d3dDevice),
-	d3dPresentParams((D3DPRESENT_PARAMETERS*)d3dPresentParams),
-	rwVideoModes((DisplayMode**)rwVideoModes),
-	RwEngineGetNumVideoModes(*(DWORD(*)())RwEngineGetNumVideoModes),
-	RwEngineGetCurrentVideoMode(*(DWORD(*)())RwEngineGetCurrentVideoMode)
+	: rsGlobalSA(reinterpret_cast<RsGlobalTypeSA*>(rsGlobal)),
+	oriWindowProc(nullptr),
+	d3dDevice(*reinterpret_cast<IDirect3DDevice8**>(d3dDevice)),
+	d3dPresentParams(reinterpret_cast<D3DPRESENT_PARAMETERS*>(d3dPresentParams)),
+	rwVideoModes(reinterpret_cast<DisplayMode**>(rwVideoModes)),
+	RwEngineGetCurrentVideoMode(reinterpret_cast<DWORD(*)()>(RwEngineGetCurrentVideoMode))
 {}
 
 HWND __stdcall WindowedMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE hInstance, LPVOID)
@@ -159,12 +135,11 @@ HWND __stdcall WindowedMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, 
 	inst->oriWindowProc = oriClass.lpfnWndProc;
 
 	inst->WindowCalculateGeometry();
-	sprintf_s(inst->windowTitle, "%s", inst->rsGlobalSA->AppName);
 
 	WNDCLASSA wndClass = {};
 	wndClass.hInstance = hInstance;
 	wndClass.lpszClassName = inst->windowClassName;
-	wndClass.hIcon = inst->windowIcon;
+	wndClass.hIcon = NULL;
 	wndClass.hCursor = LoadCursor(hInstance, IDC_ARROW);
 	wndClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
 	wndClass.lpfnWndProc = &WindowedMode::WindowProc;
@@ -175,7 +150,7 @@ HWND __stdcall WindowedMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, 
 	inst->window = CreateWindowEx(
 		inst->WindowStyleEx(),
 		inst->windowClassName,
-		inst->windowTitle,
+		inst->rsGlobalSA->AppName,
 		inst->WindowStyle(),
 		inst->windowPos.x, inst->windowPos.y,
 		inst->windowSize.x, inst->windowSize.y,
@@ -279,6 +254,7 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 
 HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS* parameters)
 {
+	(void)parameters; // unused in hook; we use stored params instead
 	inst->WindowCalculateGeometry();
 	return inst->d3dResetOri(self, (D3DPRESENT_PARAMETERS*)inst->d3dPresentParams);
 }
@@ -286,17 +262,14 @@ HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS
 void WindowedMode::InitGtaSA()
 {
 	inst = new WindowedMode(
-		0xC8D4C0, // gameState
 		0xC17040, // rsGlobal
 		0xC97C28, // d3dDevice
 		0xC9C040, // d3dPresentParams
 		0xC97C48, // rwVideoModes
-		0x7F2CC0, // RwEngineGetNumVideoModes
 		0x7F2D20  // RwEngineGetCurrentVideoMode
 	);
 
 	strcpy_s(inst->windowClassName, "Grand theft auto San Andreas");
-	inst->windowIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(100));
 
 	injector::MakeNOP(0x7455D5, 6);
 	injector::MakeCALL(0x7455D5, WindowedMode::InitWindow);
