@@ -30,7 +30,8 @@ project "BorderlessFullscreen"
    rtti "Off"  -- Disable RTTI
    exceptionhandling "Off"  -- Disable exceptions
    
-   defines { "WIN32_LEAN_AND_MEAN", "VC_EXTRALEAN", "NOMINMAX" }  -- Minimize Windows headers
+   defines { "WIN32_LEAN_AND_MEAN", "VC_EXTRALEAN" }  -- Minimize Windows headers
+   defines { "_CRT_SECURE_NO_WARNINGS" }
    defines { "rsc_CompanyName=\"ThirteenAG\"" }
    defines { "rsc_LegalCopyright=\"MIT License\""}
    defines { "rsc_FileVersion=\"1.0.0.0\"", "rsc_ProductVersion=\"1.0.0.0\"" }
