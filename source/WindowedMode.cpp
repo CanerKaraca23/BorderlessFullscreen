@@ -1,25 +1,10 @@
 #include "WindowedMode.h"
-#include "Windowed_Gta3.h"
-#include "Windowed_GtaVC.h"
 #include "Windowed_GtaSA.h"
 #include <dwmapi.h>
 
 #pragma comment(lib, "dwmapi.lib") // DwmGetWindowAttribute
-#pragma comment(lib, "winmm.lib") // timeGetTime
-
-// list of popular display aspect ratios
-const WindowedMode::AspectRatioInfo WindowedMode::AspectRatios[] = {
-	{ "1:1", 1.0f / 1.0f },
-	{ "2:1", 2.0f / 1.0f },
-	{ "4:3", 4.0f / 3.0f },
-	{ "5:4", 5.0f / 4.0f },
-	{ "10:7", 10.0f / 7.0f }, // GTA default aspect
-	{ "16:9", 16.0f / 9.0f },
-	{ "16:10", 16.0f / 10.0f }
-};
 
 WindowedMode::WindowedMode(
-	GameTitle gameTitle,
 	uintptr_t gameState,
 	uintptr_t rsGlobal,
 	uintptr_t d3dDevice,
@@ -29,11 +14,10 @@ WindowedMode::WindowedMode(
 	uintptr_t RwEngineGetCurrentVideoMode,
 	uintptr_t frontEndMenuManager
 ) :
-	gameTitle(gameTitle),
 	gameState(*(GameState*)gameState),
-	rsGlobal((RsGlobalType*)rsGlobal),
+	rsGlobalSA((RsGlobalTypeSA*)rsGlobal),
 	d3dDevice(*(IDirect3DDevice8**)d3dDevice),
-	d3dPresentParams8((D3DPRESENT_PARAMETERS*)d3dPresentParams),
+	d3dPresentParams((D3DPRESENT_PARAMETERS*)d3dPresentParams),
 	rwVideoModes((DisplayMode**)rwVideoModes),
 	RwEngineGetNumVideoModes(*(DWORD(*)())RwEngineGetNumVideoModes),
 	RwEngineGetCurrentVideoMode(*(DWORD(*)())RwEngineGetCurrentVideoMode),
@@ -50,11 +34,7 @@ HWND __stdcall WindowedMode::InitWindow(DWORD dwExStyle, LPCSTR lpClassName, LPC
 	}
 	inst->oriWindowProc = oriClass.lpfnWndProc;
 
-	inst->InitConfig();
-	bool maximize = inst->LoadConfig();
-	bool center = (inst->windowPos.x == -1) || (inst->windowPos.y == -1);
-
-	inst->WindowCalculateGeometry(center);
+	inst->WindowCalculateGeometry();
 	inst->WindowUpdateTitle();
 
 	WNDCLASSA wndClass;
@@ -84,10 +64,7 @@ HWND __stdcall WindowedMode::InitWindow(DWORD dwExStyle, LPCSTR lpClassName, LPC
 		hInstance,
 		0);
 
-	if (maximize)
-		PostMessage(inst->window, WM_SYSCOMMAND, SC_MAXIMIZE, 0); // maximize and perofm updates
-	else if (inst->windowMode == WindowMode::Windowed)
-		inst->WindowCalculateGeometry(center, true); // now modern styles border padding can be calculcated
+	inst->WindowCalculateGeometry(true); // now modern styles border padding can be calculated
 
 	UpdateWindow(inst->window);
 	inst->MouseUpdate(true); // lock cursor in the window until main menu appears
@@ -106,160 +83,46 @@ void WindowedMode::InitD3dDevice()
 	DWORD oldProtect;
 	injector::UnprotectMemory(vTable, 20 * sizeof(uintptr_t), oldProtect);
 
-	if (IsD3D9())
-	{
-		d3dResetOri = reinterpret_cast<decltype(d3dResetOri)>(vTable[16]);
-		vTable[16] = (uintptr_t)&D3dResetHook;
+	// DirectX 9 hooks
+	d3dResetOri = reinterpret_cast<decltype(d3dResetOri)>(vTable[16]);
+	vTable[16] = (uintptr_t)&D3dResetHook;
 
-		d3dPresentOri = reinterpret_cast<decltype(d3dPresentOri)>(vTable[17]);
-		vTable[17] = (uintptr_t)&D3dPresentHook;
-	}
-	else
-	{
-		d3dResetOri = reinterpret_cast<decltype(d3dResetOri)>(vTable[14]);
-		vTable[14] = (uintptr_t)&D3dResetHook;
-
-		d3dPresentOri = reinterpret_cast<decltype(d3dPresentOri)>(vTable[15]);
-		vTable[15] = (uintptr_t)&D3dPresentHook;
-	}
+	d3dPresentOri = reinterpret_cast<decltype(d3dPresentOri)>(vTable[17]);
+	vTable[17] = (uintptr_t)&D3dPresentHook;
 }
 
-void WindowedMode::InitConfig()
-{
-	auto attr = GetFileAttributes(config.GetIniPath().string().c_str());
-	
-	if (attr == INVALID_FILE_ATTRIBUTES) // does not exists
-		SaveConfig();
-}
 
-bool WindowedMode::LoadConfig()
-{
-	windowMode = (WindowMode)config.ReadInteger("window", "mode", WindowMode::Windowed);
-	windowMode = std::clamp(windowMode, WindowMode::Min, WindowMode::Max);
 
-	bool maximize = config.ReadInteger("window", "maximized", 0) != false;
 
-	windowPosWindowed.x = config.ReadInteger("window", "positionX", -1);
-	windowPosWindowed.y = config.ReadInteger("window", "positionY", -1);
-
-	windowSizeWindowed.x = max(config.ReadInteger("window", "resolutionX", Resolution_Default.x), Resolution_Min.x);
-	windowSizeWindowed.y = max(config.ReadInteger("window", "resolutionY", Resolution_Default.y), Resolution_Min.y);
-	
-	windowPos = windowPosWindowed;
-	windowSize = windowSizeClient = windowSizeWindowed;
-	
-	menuFrameRateLimit = config.ReadInteger("game", "menuFPS", 30);
-	autoPause = config.ReadInteger("game", "autoPause", true) != false;
-	autoResume = config.ReadInteger("game", "autoResume", true) != false;
-
-	return maximize;
-}
-
-void WindowedMode::SaveConfig()
-{
-	config.WriteString("window", "mode",		StringPrintf("%d\t\t\t; 1: window, 2: window borderless, 3: fullscreen", windowMode));
-	config.WriteString("window", "maximized",	StringPrintf("%d", IsZoomed(window)));
-	config.WriteString("window", "positionX",	StringPrintf("%d\t; -1: centered", windowPosWindowed.x));
-	config.WriteString("window", "positionY",	StringPrintf("%d\t; -1: centered", windowPosWindowed.y));
-	config.WriteString("window", "resolutionX",	StringPrintf("%d", windowSizeWindowed.x));
-	config.WriteString("window", "resolutionY",	StringPrintf("%d", windowSizeWindowed.y));
-	
-	config.WriteString("game", "menuFPS",		StringPrintf("%d\t\t; frame rate limit for main menu. 0: unlimited", menuFrameRateLimit));
-	config.WriteString("game", "autoPause",		StringPrintf("%d\t\t; pause the game on window deactivation", autoPause));
-	config.WriteString("game", "autoResume",	StringPrintf("%d\t; resume the game on window activation", autoResume));
-}
-
-int WindowedMode::FindAspectRatio(POINT resolution, float treshold)
-{
-	auto ratio = float(resolution.x) / resolution.y;
-
-	// find best match in
-	int idx = -1;
-	float dist = 9999.0f;
-	for (size_t i = 0; i < _countof(AspectRatios); i++)
-	{
-		auto diff = fabs(AspectRatios[i].ratio - ratio);
-		if (diff < dist)
-		{
-			idx = i;
-			dist = diff;
-		}
-	}
-
-	return dist <= treshold ? idx : -1;
-}
 
 DWORD WindowedMode::WindowStyle() const
 {
-	return WS_VISIBLE | WS_CLIPSIBLINGS | ((windowMode == WindowMode::Windowed) ?
-		WS_OVERLAPPEDWINDOW :
-		WS_POPUP);
+	return WS_VISIBLE | WS_CLIPSIBLINGS | WS_POPUP;
 }
 
 DWORD WindowedMode::WindowStyleEx() const
 {
-	return (windowMode == WindowMode::Windowed) ?
-		0 : // WS_EX_CLIENTEDGE
-		0;
+	return 0;
 }
 
-void WindowedMode::WindowCalculateGeometry(bool center, bool resizeWindow)
+void WindowedMode::WindowCalculateGeometry(bool resizeWindow)
 {
 	windowUpdating = true;
 
+	// Get primary monitor (default to center of screen if window not yet created)
 	POINT windowCenter = { windowPos.x + windowSize.x / 2, windowPos.y + windowSize.y / 2};
 	auto monitorRect = GetMonitorRect(windowCenter);
 	auto monitorWidth = monitorRect.right - monitorRect.left;
 	auto monitorHeight = monitorRect.bottom - monitorRect.top;
-	bool monitorSingle = GetSystemMetrics(SM_CMONITORS) <= 1;
 
-	// size
-	if (windowMode == WindowMode::Fullscreen)
-	{
-		windowPos.x = monitorRect.left;
-		windowPos.y = monitorRect.top;
-		windowSize.x = windowSizeClient.x = monitorWidth;
-		windowSize.y = windowSizeClient.y = monitorHeight;
-	}
-	else if (!IsZoomed(window)) // not maximized windowed modes
-	{
-		windowSize = SizeFromClient(windowSizeWindowed);
-
-		if (monitorSingle) // limit window size to desktop
-		{
-			windowSize.x = min(windowSize.x, monitorWidth);
-			windowSize.y = min(windowSize.y, monitorHeight);
-		}
-
-		windowSizeClient = windowSizeWindowed = ClientFromSize(windowSize);
-
-		// window position
-		if (center)
-		{
-			windowPosWindowed.x = (monitorWidth - windowSize.x) / 2;
-			windowPosWindowed.y = (monitorHeight - windowSize.y) / 2;
-		}
-		
-		if (monitorSingle) // keep entire window on the screen
-		{
-			windowPosWindowed.x = max(windowPosWindowed.x, monitorRect.left);
-			if (windowPosWindowed.x + windowSize.x > monitorRect.right)
-			{
-				windowPosWindowed.x = monitorRect.right - windowSize.x;
-			}
-
-			windowPosWindowed.y = max(windowPosWindowed.y, monitorRect.top);
-			if (windowPosWindowed.y + windowSize.y > monitorRect.bottom)
-			{
-				windowPosWindowed.y = monitorRect.bottom - windowSize.y;
-			}
-		}
-
-		windowPos = windowPosWindowed;
-	}
+	// Borderless fullscreen - always use full monitor size at monitor position
+	windowPos.x = monitorRect.left;
+	windowPos.y = monitorRect.top;
+	windowSize.x = windowSizeClient.x = monitorWidth;
+	windowSize.y = windowSizeClient.y = monitorHeight;
 
 	// apply to the window
-	if (resizeWindow && !IsZoomed(window))
+	if (resizeWindow)
 	{
 		SetWindowLong(window, GWL_STYLE, WindowStyle());
 		SetWindowLong(window, GWL_EXSTYLE, WindowStyleEx());
@@ -277,43 +140,20 @@ void WindowedMode::WindowCalculateGeometry(bool center, bool resizeWindow)
 	}
 
 	// apply resolution to game internals
-	if (gameTitle == GameTitle::GTA_SA)
-	{
-		rsGlobalSA->ps->fullScreen = false;
-		rsGlobalSA->ps->window = window;
-		rsGlobalSA->MaximumWidth = windowSizeClient.x;
-		rsGlobalSA->MaximumHeight = windowSizeClient.y;
-	}
-	else
-	{
-		rsGlobal->ps->fullScreen = false;
-		rsGlobal->ps->window = window;
-		rsGlobal->screenWidth = rsGlobal->MaximumWidth = windowSizeClient.x;
-		rsGlobal->screenHeight = rsGlobal->MaximumHeight = windowSizeClient.y;
-	}
+	rsGlobalSA->ps->fullScreen = false;
+	rsGlobalSA->ps->window = window;
+	rsGlobalSA->MaximumWidth = windowSizeClient.x;
+	rsGlobalSA->MaximumHeight = windowSizeClient.y;
 
-	if (IsD3D9())
-	{
-		d3dPresentParams9->Windowed = TRUE;
-		d3dPresentParams9->hDeviceWindow = window;
-		d3dPresentParams9->BackBufferWidth = windowSizeClient.x;
-		d3dPresentParams9->BackBufferHeight = windowSizeClient.y;
-		d3dPresentParams9->BackBufferFormat = D3DFMT_A8R8G8B8;
-		d3dPresentParams9->SwapEffect = D3DSWAPEFFECT_DISCARD;
-		d3dPresentParams9->FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
-		d3dPresentParams9->FullScreen_RefreshRateInHz = 0;
-	}
-	else
-	{
-		d3dPresentParams8->Windowed = TRUE;
-		d3dPresentParams8->hDeviceWindow = window;
-		d3dPresentParams8->BackBufferWidth = windowSizeClient.x;
-		d3dPresentParams8->BackBufferHeight = windowSizeClient.y;
-		d3dPresentParams8->BackBufferFormat = D3DFMT_X8R8G8B8;
-		d3dPresentParams8->SwapEffect = D3DSWAPEFFECT_DISCARD;
-		d3dPresentParams8->FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
-		d3dPresentParams8->FullScreen_RefreshRateInHz = 0;
-	}
+	// DirectX 9 parameters
+	d3dPresentParams->Windowed = TRUE;
+	d3dPresentParams->hDeviceWindow = window;
+	d3dPresentParams->BackBufferWidth = windowSizeClient.x;
+	d3dPresentParams->BackBufferHeight = windowSizeClient.y;
+	d3dPresentParams->BackBufferFormat = D3DFMT_A8R8G8B8;
+	d3dPresentParams->SwapEffect = D3DSWAPEFFECT_DISCARD;
+	d3dPresentParams->FullScreen_PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+	d3dPresentParams->FullScreen_RefreshRateInHz = 0;
 
 	// write the resolution into video display modes list
 	if (*rwVideoModes)
@@ -338,66 +178,17 @@ void WindowedMode::WindowCalculateGeometry(bool center, bool resizeWindow)
 		auto& mode = (*rwVideoModes)[currVideoMode];
 		mode.width = windowSizeClient.x;
 		mode.height = windowSizeClient.y;
-		mode.format = IsD3D9() ? d3dPresentParams9->BackBufferFormat : d3dPresentParams8->BackBufferFormat;
-		mode.refreshRate = IsD3D9() ? d3dPresentParams9->FullScreen_RefreshRateInHz : d3dPresentParams8->FullScreen_RefreshRateInHz;
+		mode.format = d3dPresentParams->BackBufferFormat;
+		mode.refreshRate = d3dPresentParams->FullScreen_RefreshRateInHz;
 		mode.flags &= ~1; // clear fullscreen flag
 	}
 
 	windowUpdating = false;
 }
 
-void WindowedMode::WindowResize(POINT resolution)
-{
-	if (windowMode == WindowMode::Fullscreen)
-		windowMode = WindowMode::Windowed;
-
-	windowSizeWindowed = resolution;
-	WindowCalculateGeometry(false, true); // and resize the window
-	SaveConfig();
-}
-
-void WindowedMode::WindowModeCycle()
-{
-	if (IsIconic(window)) return; // minimized
-
-	if (!HasFocus(window)) return; // window inactive
-
-	if (IsZoomed(window)) // maximized
-	{
-		windowMode = WindowedMode::Min;
-		ShowWindow(window, SW_RESTORE);
-	}
-	else
-	{
-		BYTE& mode = *(BYTE*)&windowMode;
-		mode += 1;
-		if (mode > WindowedMode::Max) mode = WindowedMode::Min;
-	}
-
-	WindowCalculateGeometry(false, true);
-	SaveConfig();
-}
-
 void WindowedMode::WindowUpdateTitle()
 {
-	if (windowMode == WindowMode::Windowed && HasFocus(window))
-	{
-		std::string aspectTxt;
-		auto idx = FindAspectRatio(windowSizeClient);
-		if (idx != -1)
-		{
-			aspectTxt = StringPrintf(" (%s)", AspectRatios[idx].name);
-		}
-
-		sprintf_s(windowTitle, "%s | %ux%u%s @ %u fps",
-			rsGlobal->AppName,
-			windowSizeClient.x,
-			windowSizeClient.y,
-			aspectTxt.c_str(),
-			fpsCounter.get());
-	}
-	else
-		strcpy_s(windowTitle, rsGlobal->AppName);
+	sprintf_s(windowTitle, "%s", rsGlobalSA->AppName);
 	
 	if (window)
 		SetWindowText(window, windowTitle);
@@ -413,39 +204,6 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 			auto result = (LOWORD(wParam) == WA_INACTIVE) ?
 				DefWindowProc(wnd, msg, wParam, lParam) : // don't pause game on defocus
 				CallWindowProc(inst->oriWindowProc, wnd, msg, wParam, lParam);
-
-			// handle automatic pause/resume
-			if (inst->gameState == Playing_Game)
-			{
-				switch(LOWORD(wParam))
-				{
-					case WA_INACTIVE:
-						if (inst->autoPause && !inst->IsMainMenuVisible())
-						{
-							inst->SwitchMainMenu(true);
-							inst->autoPauseExecuted = true;
-						}
-						break;
-
-					case WA_CLICKACTIVE: // mouse click
-						if (!IsCursorInClientRect(wnd))
-						{
-							inst->autoPauseExecuted = false;
-							break; // user clicked on the window caption or edge
-						}
-						[[fallthrough]];
-
-					case WA_ACTIVE:
-						if (inst->autoResume && 
-							(!inst->autoPause || inst->autoPauseExecuted) && 
-							inst->IsMainMenuVisible()) // TODO: check if not in some submenu
-						{
-							inst->autoPauseExecuted = false;
-							inst->SwitchMainMenu(false);
-						}
-						break;
-				}
-			}
 
 			inst->WindowUpdateTitle();
 			inst->MouseUpdate(true);
@@ -468,13 +226,6 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 			if (!HasFocus(wnd))
 				return DefWindowProc(wnd, msg, wParam, lParam); // bypass the game
 			
-			// handle Alt+Enter key combination
-			if (wParam == VK_RETURN && IsKeyDown(VK_MENU))
-			{
-				inst->WindowModeCycle();
-				return DefWindowProc(wnd, msg, wParam, lParam); // bypass the game
-			}
-
 			break;
 		}
 
@@ -527,64 +278,8 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 			break;
 		}
 
-		// user dragging the window edge
-		case WM_SIZING:
-		{
-			auto wndRect = (RECT*)lParam;
-			auto size = inst->ClientFromSize({
-				wndRect->right - wndRect->left,
-				wndRect->bottom - wndRect->top
-			});
-
-			// minimal game resolution
-			size.x = max(size.x, Resolution_Min.x);
-			size.y = max(size.y, Resolution_Min.y);
-
-			// snap to known aspect ratios
-			auto idx = FindAspectRatio(size, 0.02f);
-			if (idx != -1)
-			{
-				auto currAspect = float(size.x) / size.y;
-
-				switch(wParam)
-				{
-					case WMSZ_LEFT:
-					case WMSZ_RIGHT:
-						size.x = LONG(size.y * AspectRatios[idx].ratio);
-						break;
-
-					case WMSZ_TOP:
-					case WMSZ_BOTTOM:
-						size.y = LONG(size.x / AspectRatios[idx].ratio);
-						break;
-
-					default: // sizing both X and Y
-					{
-						if (currAspect < AspectRatios[idx].ratio)
-							size.x = LONG(size.y * AspectRatios[idx].ratio);
-						else
-							size.y = LONG(size.x / AspectRatios[idx].ratio);
-					}
-				}
-			}
-
-			// update window title immediately
-			inst->windowSizeClient.x = size.x;
-			inst->windowSizeClient.y = size.y;
-			inst->WindowUpdateTitle();
-
-			// apply modified window size
-			size = inst->SizeFromClient(size);
-			if (wParam == WMSZ_LEFT || wParam == WMSZ_TOPLEFT || wParam == WMSZ_BOTTOMLEFT) wndRect->left = wndRect->right - size.x;
-			if (wParam == WMSZ_RIGHT || wParam == WMSZ_TOPRIGHT || wParam == WMSZ_BOTTOMRIGHT) wndRect->right = wndRect->left + size.x;
-			if (wParam == WMSZ_TOP || wParam == WMSZ_TOPLEFT || wParam == WMSZ_TOPRIGHT) wndRect->top = wndRect->bottom - size.y;
-			if (wParam == WMSZ_BOTTOM || wParam == WMSZ_BOTTOMLEFT || wParam == WMSZ_BOTTOMRIGHT) wndRect->bottom = wndRect->top + size.y;
-
-			return DefWindowProc(wnd, msg, wParam, lParam);
-		}
-
 		case WM_EXITSIZEMOVE:
-			inst->WindowCalculateGeometry(false, true);
+			inst->WindowCalculateGeometry(true);
 
 		// minimize, maximize, restore
 		case WM_SIZE:
@@ -624,14 +319,8 @@ LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPA
 			if (updated)
 			{
 				inst->windowSizeClient = inst->ClientFromSize(inst->windowSize);
-				if (inst->windowMode != WindowMode::Fullscreen && !IsZoomed(wnd))
-				{
-					inst->windowPosWindowed = inst->windowPos;
-					inst->windowSizeWindowed = inst->windowSizeClient;
-				}
 				inst->WindowCalculateGeometry();
 				inst->WindowUpdateTitle();
-				inst->SaveConfig();
 			}
 
 			break;
@@ -683,119 +372,23 @@ RECT WindowedMode::GetFrameSize(bool padOnly) const
 	return frame;
 }
 
-bool WindowedMode::IsD3D9() const
-{
-	return gameTitle == GameTitle::GTA_SA;
-}
-
 HRESULT WindowedMode::D3dPresentHook(IDirect3DDevice8* self, const RECT* srcRect, const RECT* dstRect, HWND wnd, const RGNDATA* region)
 {
 	inst->MouseUpdate();
-
-	if (inst->fpsCounter.update())
-		inst->WindowUpdateTitle();
-
-	auto result = inst->d3dPresentOri(self, srcRect, dstRect, wnd, region);
-
-	// limit framerate in main menu
-	if (inst->menuFrameRateLimit > 0 && inst->IsMainMenuVisible())
-	{
-		static DWORD prevTime = 0;
-		DWORD currTime = timeGetTime();
-	
-		while (true)
-		{
-			DWORD delta = currTime - prevTime;
-
-			if (delta >= (1000 / (DWORD)inst->menuFrameRateLimit))
-				break;
-
-			Sleep(1);
-			currTime = timeGetTime();
-		}
-		prevTime = currTime;
-	}
-
-	return result;
+	return inst->d3dPresentOri(self, srcRect, dstRect, wnd, region);
 }
 
 HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS* parameters)
 {
-	if (parameters->BackBufferWidth == inst->windowSizeClient.x && parameters->BackBufferHeight == inst->windowSizeClient.y)
-	{
-		inst->WindowCalculateGeometry(); // update presentation params
-	}
-	else // resolution changed
-	{
-		inst->WindowResize({ (LONG)parameters->BackBufferWidth, (LONG)parameters->BackBufferHeight });
-	}
+	// Always update geometry, ignore resolution changes from game
+	inst->WindowCalculateGeometry();
 
-	auto result = inst->d3dResetOri(self, inst->d3dPresentParams8);
+	auto result = inst->d3dResetOri(self, (D3DPRESENT_PARAMETERS*)inst->d3dPresentParams);
 
 	if (SUCCEEDED(result))
 		inst->UpdatePostEffect();
 
 	return result;
-}
-
-bool WindowedMode::IsMainMenuVisible() const
-{
-	switch(gameTitle)
-	{
-		case GTA_3:
-		{
-			auto mgr = (CMenuManager3*)frontEndMenuManager;
-			return mgr->m_bMenuActive;
-		}
-
-		case GTA_VC:
-		{
-			auto mgr = (CMenuManagerVC*)frontEndMenuManager;
-			return mgr->m_bMenuActive;
-		}
-		
-		case GTA_SA:
-		{
-			auto mgr = (CMenuManagerSA*)frontEndMenuManager;
-			return mgr->m_bMenuActive;
-		}
-
-		default:
-			return false;
-	}
-}
-
-void WindowedMode::SwitchMainMenu(bool show)
-{
-	switch(gameTitle)
-	{
-		case GTA_3:
-			if (show)
-				injector::cstd<void()>::call(0x488770); // CMenuManager::RequestFrontEndStartUp()
-			else
-				injector::cstd<void()>::call(0x488750); // CMenuManager::RequestFrontEndShutDown()
-			break;
-
-		case GTA_VC:
-		{
-			auto mgr = (CMenuManagerVC*)frontEndMenuManager;
-			if (show == mgr->m_bMenuActive) break; // already done
-			
-			mgr->m_bStartUpFrontEndRequested = show;
-			mgr->m_bShutDownFrontEndRequested = !show;
-			break;
-		}
-		
-		case GTA_SA:
-		{
-			auto mgr = (CMenuManagerSA*)frontEndMenuManager;
-			if (show == mgr->m_bMenuActive) break; // already done
-
-			mgr->m_bActivateMenuNextFrame = show;
-			mgr->m_bDontDrawFrontEnd = !show;
-			break;
-		}
-	}
 }
 
 void WindowedMode::MouseUpdate(bool force)
@@ -817,45 +410,27 @@ void WindowedMode::MouseUpdate(bool force)
 	// keep cursor inside the window
 	if (hasFocus || force)
 	{
-		if (!hasFocus || IsMainMenuVisible())
-			ClipCursor(NULL);
-		else
-			ClipCursor(&rect);
+		ClipCursor(hasFocus ? &rect : NULL);
 	}
 }
 
 void WindowedMode::UpdatePostEffect()
 {
-	switch(gameTitle)
+	POINT oriSize;
+	auto cam = *(RwCamera**)0xC1703C; // Scene.m_pRwCamera
+	if (cam)
 	{
-		case GameTitle::GTA_3:
-			injector::cstd<void(RwCamera*)>::call(0x50AE40, *(RwCamera**)0x72676C); // CMBlurMotion::BlurOpen(RwCamera*)
-			break;
-			
-		case GameTitle::GTA_VC:
-			injector::cstd<void(RwCamera*)>::call(0x55CE20, *(RwCamera**)0x8100BC); // CMBlurMotion::BlurOpen(RwCamera*)
-			break;
-			
-		case GameTitle::GTA_SA:
-		{
-			POINT oriSize;
-			auto cam = *(RwCamera**)0xC1703C; // Scene.m_pRwCamera
-			if (cam)
-			{
-				oriSize = { cam->frameBuffer->nWidth, cam->frameBuffer->nHeight }; // store
-				cam->frameBuffer->nWidth = windowSizeClient.x;
-				cam->frameBuffer->nHeight = windowSizeClient.y;
-			}
+		oriSize = { cam->frameBuffer->nWidth, cam->frameBuffer->nHeight }; // store
+		cam->frameBuffer->nWidth = windowSizeClient.x;
+		cam->frameBuffer->nHeight = windowSizeClient.y;
+	}
 
-			injector::cstd<void()>::call(0x7043D0); // CPostEffects::SetupBackBufferVertex()
+	injector::cstd<void()>::call(0x7043D0); // CPostEffects::SetupBackBufferVertex()
 
-			if (cam)
-			{
-				cam->frameBuffer->nWidth = oriSize.x; // restore
-				cam->frameBuffer->nHeight = oriSize.y;
-			}
-			break;
-		}
+	if (cam)
+	{
+		cam->frameBuffer->nWidth = oriSize.x; // restore
+		cam->frameBuffer->nHeight = oriSize.y;
 	}
 
 	UpdateWidescreenFix();
@@ -869,20 +444,7 @@ void WindowedMode::UpdateWidescreenFix()
 
 	if (!initialized)
 	{
-		switch(gameTitle)
-		{
-			case GameTitle::GTA_3:
-				widescreenFix = GetModuleHandle("GTA3.WidescreenFix.asi");
-				break;
-			
-			case GameTitle::GTA_VC:
-				widescreenFix = GetModuleHandle("GTAVC.WidescreenFix.asi");
-				break;
-			
-			case GameTitle::GTA_SA:
-				widescreenFix = GetModuleHandle("GTASA.WidescreenFix.asi");
-				break;
-		}
+		widescreenFix = GetModuleHandle("GTASA.WidescreenFix.asi");
 
 		if (widescreenFix)
 			updateFunc = GetProcAddress(widescreenFix, "UpdateVars");

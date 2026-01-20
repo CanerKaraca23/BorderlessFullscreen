@@ -10,8 +10,8 @@ xcopy /Y \"$(TargetPath)\" \"$(GTA_" .. gameAbbr .. "_DIR)\\scripts\" \r\n\
     debugdir ("$(GTA_" .. gameAbbr .. "_DIR)")
 end
 
-workspace "III.VC.SA.WindowedMode"
-   configurations { "Release", "Gta3", "GtaVC", "GtaSA" }
+workspace "BorderlessFullscreen"
+   configurations { "Release", "GtaSA" }
    platforms { "Win32" }
    architecture "x32"
    characterset ("MBCS")
@@ -20,13 +20,17 @@ workspace "III.VC.SA.WindowedMode"
    objdir ("build/obj")
    buildlog ("build/log/%{prj.name}.log")
    buildoptions {"-std:c++latest"}
+   flags { "MultiProcessorCompile" }
       
-project "III.VC.SA.WindowedMode"
+project "BorderlessFullscreen"
    kind "SharedLib"
    language "C++"
    targetdir "data/%{cfg.buildcfg}"
    targetextension ".asi"
+   rtti "Off"  -- Disable RTTI
+   exceptionhandling "Off"  -- Disable exceptions
    
+   defines { "WIN32_LEAN_AND_MEAN", "VC_EXTRALEAN", "NOMINMAX" }  -- Minimize Windows headers
    defines { "rsc_CompanyName=\"ThirteenAG\"" }
    defines { "rsc_LegalCopyright=\"MIT License\""} 
    defines { "rsc_FileVersion=\"1.0.0.0\"", "rsc_ProductVersion=\"1.0.0.0\"" }
@@ -41,22 +45,10 @@ project "III.VC.SA.WindowedMode"
    files { "external/injector/zydis/**.h", "external/injector/zydis/**.c" }
 
    includedirs { "source" }
-   includedirs { "source/d3d8" }
+   includedirs { "external/injector/include" }
    includedirs { "external/injector/safetyhook/include" }
    includedirs { "external/injector/zydis" }
-   includedirs { "external/injector/include" }
-   includedirs { "external/IniReader" }
 
-   filter "configurations:Gta3"
-      defines { "DEBUG" }
-      symbols "on"
-      setupDebugger("III", "gta3.exe")
-      
-   filter "configurations:GtaVC"
-      defines { "DEBUG" }
-      symbols "on"
-      setupDebugger("VC", "gta-vc.exe")
-      
    filter "configurations:GtaSA"
       defines { "DEBUG" }
       symbols "on"
@@ -64,5 +56,9 @@ project "III.VC.SA.WindowedMode"
 
    filter "configurations:Release"
       defines { "NDEBUG" }
-      optimize "on"
+      optimize "Speed"
+      flags { "LinkTimeOptimization", "NoBufferSecurityCheck" }
+      buildoptions { "/Gy", "/Gw", "/GL" }  -- Function-level linking, Whole program optimization, Global data optimization
+      linkoptions { "/LTCG", "/OPT:REF", "/OPT:ICF", "/MERGE:.rdata=.text" }  -- Link-time code gen, Remove unused, Fold identical, Merge sections
+      symbols "Off"  -- Strip debug symbols
       targetdir "data"
