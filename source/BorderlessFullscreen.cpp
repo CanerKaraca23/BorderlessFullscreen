@@ -80,20 +80,20 @@ static inline RECT GetMonitorRect(POINT pos)
 	return info.rcMonitor;
 }
 
-class WindowedMode
+class BorderlessMode
 {
 public:
 	static void InitGtaSA();
 
 	RsGlobalTypeSA* rsGlobalSA;
-	WNDPROC oriWindowProc;
+	WNDPROC originalWindowProc;
 	IDirect3DDevice8*& d3dDevice;
 	D3DPRESENT_PARAMETERS* d3dPresentParams;
 	DisplayMode** rwVideoModes;
 	DWORD (*RwEngineGetCurrentVideoMode)();
 	HICON windowIcon = nullptr;
 
-	WindowedMode(
+	BorderlessMode(
 		uintptr_t rsGlobal,
 		uintptr_t d3dDevice,
 		uintptr_t d3dPresentParams,
@@ -105,7 +105,7 @@ public:
 	void ApplyPresentationParams();
 
 	HWND window = 0;
-	bool windowUpdating = false;
+	bool isUpdating = false;
 	POINT windowPos = {};
 	POINT windowSize = {};
 	POINT windowSizeClient = {};
@@ -119,30 +119,30 @@ public:
 	decltype(D3dResetHook)* d3dResetOri = nullptr;
 };
 
-static WindowedMode* inst = nullptr;
+static BorderlessMode* inst = nullptr;
 
-WindowedMode::WindowedMode(
+BorderlessMode::BorderlessMode(
 	uintptr_t rsGlobal,
 	uintptr_t d3dDevice,
 	uintptr_t d3dPresentParams,
 	uintptr_t rwVideoModes,
 	uintptr_t RwEngineGetCurrentVideoMode)
 	: rsGlobalSA(reinterpret_cast<RsGlobalTypeSA*>(rsGlobal)),
-	oriWindowProc(nullptr),
+	originalWindowProc(nullptr),
 	d3dDevice(*reinterpret_cast<IDirect3DDevice8**>(d3dDevice)),
 	d3dPresentParams(reinterpret_cast<D3DPRESENT_PARAMETERS*>(d3dPresentParams)),
 	rwVideoModes(reinterpret_cast<DisplayMode**>(rwVideoModes)),
 	RwEngineGetCurrentVideoMode(reinterpret_cast<DWORD(*)()>(RwEngineGetCurrentVideoMode))
 {}
 
-HWND __stdcall WindowedMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE hInstance, LPVOID)
+HWND __stdcall BorderlessMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, int, int, HWND, HMENU, HINSTANCE hInstance, LPVOID)
 {
 	WNDCLASSA oriClass;
 	if (!GetClassInfo(hInstance, kWindowClassName, &oriClass))
 	{
 		return nullptr;
 	}
-	inst->oriWindowProc = oriClass.lpfnWndProc;
+	inst->originalWindowProc = oriClass.lpfnWndProc;
 
 	inst->WindowCalculateGeometry();
 
@@ -152,7 +152,7 @@ HWND __stdcall WindowedMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, 
 	wndClass.hIcon = inst->windowIcon;
 	wndClass.hCursor = LoadCursor(hInstance, IDC_ARROW);
 	wndClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
-	wndClass.lpfnWndProc = &WindowedMode::WindowProc;
+	wndClass.lpfnWndProc = &BorderlessMode::WindowProc;
 
 	UnregisterClass(kWindowClassName, hInstance);
 	RegisterClass(&wndClass);
@@ -174,7 +174,7 @@ HWND __stdcall WindowedMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int, 
 	return inst->window;
 }
 
-void WindowedMode::InitD3dDevice()
+void BorderlessMode::InitD3dDevice()
 {
 	if (d3dDevice == nullptr)
 	{
@@ -189,17 +189,17 @@ void WindowedMode::InitD3dDevice()
 	vTable[16] = (uintptr_t)&D3dResetHook;
 }
 
-DWORD WindowedMode::WindowStyle() const
+DWORD BorderlessMode::WindowStyle() const
 {
 	return WS_VISIBLE | WS_CLIPSIBLINGS | WS_POPUP;
 }
 
-DWORD WindowedMode::WindowStyleEx() const
+DWORD BorderlessMode::WindowStyleEx() const
 {
 	return 0;
 }
 
-void WindowedMode::ApplyPresentationParams()
+void BorderlessMode::ApplyPresentationParams()
 {
 	rsGlobalSA->ps->fullScreen = false;
 	rsGlobalSA->ps->window = window;
@@ -216,9 +216,9 @@ void WindowedMode::ApplyPresentationParams()
 	d3dPresentParams->FullScreen_RefreshRateInHz = 0;
 }
 
-void WindowedMode::WindowCalculateGeometry(bool resizeWindow)
+void BorderlessMode::WindowCalculateGeometry(bool resizeWindow)
 {
-	windowUpdating = true;
+	isUpdating = true;
 
 	POINT windowCenter = { windowPos.x + windowSize.x / 2, windowPos.y + windowSize.y / 2 };
 	auto monitorRect = GetMonitorRect(windowCenter);
@@ -250,33 +250,33 @@ void WindowedMode::WindowCalculateGeometry(bool resizeWindow)
 		mode.flags &= ~1;
 	}
 
-	windowUpdating = false;
+	isUpdating = false;
 }
 
-LRESULT APIENTRY WindowedMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPARAM lParam)
+LRESULT APIENTRY BorderlessMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
 	{
 	case WM_SIZE:
 	case WM_WINDOWPOSCHANGED:
-		if (!inst->windowUpdating)
+		if (!inst->isUpdating)
 			inst->WindowCalculateGeometry(true);
 		break;
 	}
 
-	return CallWindowProc(inst->oriWindowProc, wnd, msg, wParam, lParam);
+	return CallWindowProc(inst->originalWindowProc, wnd, msg, wParam, lParam);
 }
 
-HRESULT WindowedMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS* parameters)
+HRESULT BorderlessMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS* parameters)
 {
 	(void)parameters; // unused in hook; we use stored params instead
 	inst->WindowCalculateGeometry();
 	return inst->d3dResetOri(self, inst->d3dPresentParams);
 }
 
-void WindowedMode::InitGtaSA()
+void BorderlessMode::InitGtaSA()
 {
-	inst = new WindowedMode(
+	inst = new BorderlessMode(
 		kRsGlobalAddr,
 		kD3dDeviceAddr,
 		kPresentParamsAddr,
@@ -286,7 +286,7 @@ void WindowedMode::InitGtaSA()
 	inst->windowIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(100));
 
 	injector::MakeNOP(0x7455D5, 6);
-	injector::MakeCALL(0x7455D5, WindowedMode::InitWindow);
+	injector::MakeCALL(0x7455D5, BorderlessMode::InitWindow);
 
 	struct Patch_InitPresentationParams
 	{
@@ -311,7 +311,7 @@ BOOL APIENTRY DllMain(HMODULE, DWORD reason, LPVOID)
 {
 	if (reason == DLL_PROCESS_ATTACH)
 	{
-		WindowedMode::InitGtaSA();
+		BorderlessMode::InitGtaSA();
 	}
 
 	return TRUE;
