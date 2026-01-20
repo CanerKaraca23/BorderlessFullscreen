@@ -1,4 +1,5 @@
 #include "WindowedMode.h"
+#include "injector/assembly.hpp"
 
 void WindowedMode::InitGtaSA()
 {
