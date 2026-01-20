@@ -1,6 +1,5 @@
 // Single-file minimal borderless fullscreen plugin for GTA SA 1.0 US
 #include <windows.h>
-
 #include "injector/injector.hpp"
 #include "injector/assembly.hpp"
 
@@ -60,24 +59,29 @@ struct D3DPRESENT_PARAMETERS
 
 namespace
 {
+	// GTA SA constants
 	constexpr const char* kWindowClassName = "Grand theft auto San Andreas";
 	constexpr int kGameIconResource = 100;
-	constexpr auto kRsGlobalAddr = 0xC17040;
-	constexpr auto kD3dDeviceAddr = 0xC97C28;
-	constexpr auto kPresentParamsAddr = 0xC9C040;
-	constexpr auto kRwVideoModesAddr = 0xC97C48;
-	constexpr auto kRwEngineGetCurrentVideoModeAddr = 0x7F2D20;
+	
+	// GTA SA v1.0 US memory addresses
+	constexpr uintptr_t kRsGlobalAddr = 0xC17040;
+	constexpr uintptr_t kD3dDeviceAddr = 0xC97C28;
+	constexpr uintptr_t kPresentParamsAddr = 0xC9C040;
+	constexpr uintptr_t kRwVideoModesAddr = 0xC97C48;
+	constexpr uintptr_t kRwEngineGetCurrentVideoModeAddr = 0x7F2D20;
 }
 
 static inline RECT GetMonitorRect(const POINT pos)
 {
-	auto monitor = MonitorFromPoint(pos, MONITOR_DEFAULTTONEAREST);
+	HMONITOR monitor = MonitorFromPoint(pos, MONITOR_DEFAULTTONEAREST);
 	MONITORINFO info = { sizeof(MONITORINFO) };
+	
 	if (!GetMonitorInfo(monitor, &info))
 	{
 		monitor = MonitorFromPoint(pos, MONITOR_DEFAULTTOPRIMARY);
 		GetMonitorInfo(monitor, &info);
 	}
+	
 	return info.rcMonitor;
 }
 
@@ -171,17 +175,14 @@ HWND __stdcall BorderlessMode::InitWindow(DWORD, LPCSTR, LPCSTR, DWORD, int, int
 
 void BorderlessMode::InitD3dDevice()
 {
-	if (d3dDevice == nullptr)
-	{
-		return;
-	}
+	if (!d3dDevice) return;
 
-	auto vTable = *(uintptr_t**)d3dDevice;
+	auto vTable = *reinterpret_cast<uintptr_t**>(d3dDevice);
 	DWORD oldProtect;
 	injector::UnprotectMemory(vTable, 18 * sizeof(uintptr_t), oldProtect);
 
 	d3dResetOri = reinterpret_cast<decltype(d3dResetOri)>(vTable[16]);
-	vTable[16] = (uintptr_t)&D3dResetHook;
+	vTable[16] = reinterpret_cast<uintptr_t>(&D3dResetHook);
 }
 
 void BorderlessMode::ApplyPresentationParams()
@@ -203,25 +204,30 @@ void BorderlessMode::WindowCalculateGeometry(bool resizeWindow)
 {
 	isUpdating = true;
 
-	RECT windowRect;
-	if (!GetWindowRect(window, &windowRect))
-	{
-		windowRect = {};
-	}
+	RECT windowRect = {};
+	GetWindowRect(window, &windowRect);
 
-	const POINT windowCenter = { (windowRect.left + windowRect.right) / 2, (windowRect.top + windowRect.bottom) / 2 };
-	const auto monitorRect = GetMonitorRect(windowCenter);
-	const auto width = monitorRect.right - monitorRect.left;
-	const auto height = monitorRect.bottom - monitorRect.top;
+	const POINT windowCenter = {
+		(windowRect.left + windowRect.right) / 2,
+		(windowRect.top + windowRect.bottom) / 2
+	};
+	
+	const RECT monitorRect = GetMonitorRect(windowCenter);
+	const int width = monitorRect.right - monitorRect.left;
+	const int height = monitorRect.bottom - monitorRect.top;
 
 	rsGlobalSA->MaximumWidth = width;
 	rsGlobalSA->MaximumHeight = height;
 
 	if (resizeWindow && window)
 	{
-		SetWindowLong(window, GWL_STYLE, WS_VISIBLE | WS_CLIPSIBLINGS | WS_POPUP);
-		SetWindowLong(window, GWL_EXSTYLE, 0);
-		SetWindowPos(window, HWND_TOP, monitorRect.left, monitorRect.top, width, height,
+		constexpr DWORD style = WS_VISIBLE | WS_CLIPSIBLINGS | WS_POPUP;
+		constexpr DWORD exStyle = 0;
+		
+		SetWindowLong(window, GWL_STYLE, style);
+		SetWindowLong(window, GWL_EXSTYLE, exStyle);
+		SetWindowPos(window, HWND_TOP, 
+			monitorRect.left, monitorRect.top, width, height,
 			SWP_NOOWNERZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 	}
 
@@ -254,9 +260,8 @@ LRESULT APIENTRY BorderlessMode::WindowProc(HWND wnd, UINT msg, WPARAM wParam, L
 	return CallWindowProc(inst->originalWindowProc, wnd, msg, wParam, lParam);
 }
 
-HRESULT BorderlessMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS* parameters)
+HRESULT BorderlessMode::D3dResetHook(IDirect3DDevice8* self, D3DPRESENT_PARAMETERS*)
 {
-	(void)parameters; // unused in hook; we use stored params instead
 	inst->WindowCalculateGeometry();
 	return inst->d3dResetOri(self, inst->d3dPresentParams);
 }
@@ -270,28 +275,34 @@ void BorderlessMode::InitGtaSA()
 		kRwVideoModesAddr,
 		kRwEngineGetCurrentVideoModeAddr
 	);
+	
 	inst->windowIcon = LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(kGameIconResource));
 
+	// Patch CreateWindow call
 	injector::MakeNOP(0x7455D5, 6);
 	injector::MakeCALL(0x7455D5, BorderlessMode::InitWindow);
 
-	struct Patch_InitPresentationParams
+	// Patch presentation parameters initialization
+	struct PatchPresentationParams
 	{
 		void operator()(injector::reg_pack& regs)
 		{
-			regs.ecx = *(DWORD*)(0xC97C4C);
+			regs.ecx = *reinterpret_cast<DWORD*>(0xC97C4C);
 			inst->WindowCalculateGeometry();
 		}
-	}; injector::MakeInline<Patch_InitPresentationParams>(0x7F670A, 0x7F6710);
+	};
+	injector::MakeInline<PatchPresentationParams>(0x7F670A, 0x7F6710);
 
-	struct Patch_InitD3dDevice
+	// Patch D3D device initialization
+	struct PatchD3dDevice
 	{
 		void operator()(injector::reg_pack& regs)
 		{
-			*(DWORD*)(0xC9808C) = regs.ebp;
+			*reinterpret_cast<DWORD*>(0xC9808C) = regs.ebp;
 			inst->InitD3dDevice();
 		}
-	}; injector::MakeInline<Patch_InitD3dDevice>(0x7F6800, 0x7F6806);
+	};
+	injector::MakeInline<PatchD3dDevice>(0x7F6800, 0x7F6806);
 }
 
 BOOL APIENTRY DllMain(HMODULE, DWORD reason, LPVOID)

@@ -1,17 +1,17 @@
-*.user
-*.suo
-.vs/
+# Build artifacts
 /build/
 /bin/
-/obj/
-/build/obj/
-/build/log/
-[Dd]ebug*/
-[Rr]elease*/
 *.pdb
 *.ilk
 *.log
-*.ipch
+
+# IDE
+.vs/
+*.user
+*.suo
 *.opensdf
 *.opendb
+*.ipch
+
+# Premake binary
 premake5.exe
