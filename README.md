@@ -30,6 +30,5 @@ Originally created by **maxorator** as part of **Maxo's Vehicle Loader** for Vic
 
 ----
 ## Screenshots
-![ScreenShot](http://i.imgur.com/ApT8VH4m.jpg) ![ScreenShot](http://i.imgur.com/R3k5fPGm.jpg)
-
-![ScreenShot](http://i.imgur.com/Q3GkXikm.jpg) ![ScreenShot](http://i.imgur.com/wHbbtM0m.jpg)
+![ScreenShot](http://i.imgur.com/ApT8VH4m.jpg)
+![ScreenShot](http://i.imgur.com/wHbbtM0m.jpg)
