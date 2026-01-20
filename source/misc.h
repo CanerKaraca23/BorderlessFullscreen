@@ -17,7 +17,14 @@ typedef DWORD D3DSWAPEFFECT;
 #define D3DPRESENT_INTERVAL_DEFAULT 0
 
 struct IDirect3DDevice8;
-struct RsPlatformSpecific;
+
+// Minimal platform specifics used by borderless window
+struct RsPlatformSpecific
+{
+	HWND window;
+	HINSTANCE instance;
+	DWORD fullScreen;
+};
 
 // D3D present parameters
 typedef struct _D3DPRESENT_PARAMETERS_
